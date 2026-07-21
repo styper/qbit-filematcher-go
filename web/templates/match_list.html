@@ -1,0 +1,177 @@
+{{define "match_list.html"}}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {{template "head" .}}
+  </head>
+  <body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+    {{template "nav" .}}
+    <main class="mx-auto max-w-5xl px-6 py-8">
+      {{template "flash" .}}
+      <section
+        class="space-y-8"
+        x-data="{
+          scanning: {{json .Scanning}},
+          elapsedSec: {{.ScanElapsedSec}},
+          formatElapsed(sec) {
+            sec = Math.max(0, Math.floor(sec));
+            const h = Math.floor(sec / 3600);
+            const m = Math.floor((sec % 3600) / 60);
+            const s = sec % 60;
+            if (h > 0) return h + 'h' + m + 'm' + s + 's';
+            if (m > 0) return m + 'm' + s + 's';
+            return s + 's';
+          }
+        }"
+        x-init="
+          if (scanning) {
+            const tick = setInterval(() => { elapsedSec++; }, 1000);
+            const poll = setInterval(async () => {
+              try {
+                const res = await fetch('/match/scan-status');
+                const data = await res.json();
+                if (typeof data.elapsed_sec === 'number') {
+                  elapsedSec = data.elapsed_sec;
+                }
+                if (!data.running) {
+                  clearInterval(tick);
+                  clearInterval(poll);
+                  window.location.reload();
+                }
+              } catch (_) {}
+            }, 1000);
+          }
+        "
+      >
+        <div>
+          <h1 class="text-2xl font-semibold">Match</h1>
+          <p class="mt-1 text-sm text-slate-400">Load BT_backup, scan search paths, then review each torrent.</p>
+        </div>
+
+        <div class="space-y-3 rounded border border-slate-800 bg-slate-900/40 p-4">
+          <div class="space-y-3 text-sm">
+            <div>
+              <p class="text-slate-300">BT_backup</p>
+              <p class="mt-1 font-mono text-xs text-slate-400 break-all">{{.Settings.BTBackupLocation}}</p>
+            </div>
+            <div>
+              <p class="text-slate-300">Search paths</p>
+              {{if .Settings.SearchPaths}}
+              <ul class="mt-1 list-inside list-disc space-y-0.5 font-mono text-xs text-slate-400">
+                {{range .Settings.SearchPaths}}
+                <li class="break-all">{{.}}</li>
+                {{end}}
+              </ul>
+              {{else}}
+              <p class="mt-1 text-xs text-slate-500">None configured</p>
+              {{end}}
+            </div>
+            <div>
+              <p class="text-slate-300">Exclude dirs</p>
+              {{if .Settings.ExcludeDirs}}
+              <ul class="mt-1 list-inside list-disc space-y-0.5 font-mono text-xs text-slate-400">
+                {{range .Settings.ExcludeDirs}}
+                <li class="break-all">{{.}}</li>
+                {{end}}
+              </ul>
+              {{else}}
+              <p class="mt-1 text-xs text-slate-500">None</p>
+              {{end}}
+            </div>
+            <p class="text-xs text-slate-500">Edit these on the <a href="/config" class="text-cyan-400 hover:underline">Config</a> page.</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <form method="post" action="/match/scan">
+              <button
+                type="submit"
+                class="inline-flex items-center gap-2 rounded bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-cyan-400 disabled:cursor-wait disabled:opacity-80"
+                :disabled="scanning"
+              >
+                <svg x-show="scanning" x-cloak class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                </svg>
+                <span x-text="scanning ? ('Scanning… ' + formatElapsed(elapsedSec)) : 'Scan'"></span>
+              </button>
+            </form>
+            <form method="post" action="/match/scan/cancel" x-show="scanning" x-cloak>
+              <button
+                type="submit"
+                class="rounded border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:border-slate-400 hover:bg-slate-900"
+              >
+                Cancel
+              </button>
+            </form>
+          </div>
+          <p x-show="scanning" x-cloak class="text-sm text-slate-400">Loading torrents and walking search paths. This can take a while on large disks.</p>
+        </div>
+
+        {{if .Torrents}}
+        <div
+          class="overflow-x-auto rounded border border-slate-800"
+          x-data="{
+            rows: {{json .Torrents}},
+            sortKey: 'name',
+            sortAsc: true,
+            sortBy(key) {
+              if (this.sortKey === key) {
+                this.sortAsc = !this.sortAsc;
+              } else {
+                this.sortKey = key;
+                this.sortAsc = true;
+              }
+              const dir = this.sortAsc ? 1 : -1;
+              this.rows = [...this.rows].sort((a, b) => {
+                const av = a[key], bv = b[key];
+                if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+                return String(av).localeCompare(String(bv), undefined, {sensitivity: 'base'}) * dir;
+              });
+            },
+            indicator(key) {
+              if (this.sortKey !== key) return '';
+              return this.sortAsc ? ' ▲' : ' ▼';
+            }
+          }"
+        >
+          <table class="min-w-full text-left text-sm">
+            <thead class="bg-slate-900 text-slate-400">
+              <tr>
+                <th class="px-3 py-2 font-medium">
+                  <button type="button" class="hover:text-slate-200" @click="sortBy('name')">Name<span x-text="indicator('name')"></span></button>
+                </th>
+                <th class="px-3 py-2 font-medium">
+                  <button type="button" class="hover:text-slate-200" @click="sortBy('status')">Status<span x-text="indicator('status')"></span></button>
+                </th>
+                <th class="px-3 py-2 font-medium">
+                  <button type="button" class="hover:text-slate-200" @click="sortBy('files')">Files<span x-text="indicator('files')"></span></button>
+                </th>
+                <th class="px-3 py-2 font-medium">
+                  <button type="button" class="hover:text-slate-200" @click="sortBy('tags')">Tags<span x-text="indicator('tags')"></span></button>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="row in rows" :key="row.hash">
+                <tr class="border-t border-slate-800 hover:bg-slate-900/60">
+                  <td class="px-3 py-2">
+                    <a class="text-cyan-300 hover:underline" :href="'/match/' + row.hash" x-text="row.name"></a>
+                    <div class="font-mono text-[11px] text-slate-500" x-text="row.hash"></div>
+                  </td>
+                  <td class="px-3 py-2" x-text="row.status"></td>
+                  <td class="px-3 py-2" x-text="row.files"></td>
+                  <td class="px-3 py-2 text-slate-400" x-text="row.tags"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        {{else}}
+        <p class="text-sm text-slate-500" x-show="!scanning">No scan loaded yet.</p>
+        <p class="text-sm text-slate-500" x-show="scanning" x-cloak>Scan in progress…</p>
+        {{end}}
+      </section>
+    </main>
+  </body>
+</html>
+{{end}}

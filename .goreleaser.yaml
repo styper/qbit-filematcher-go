@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+
+project_name: qbit-filematcher
+
+before:
+  hooks:
+    # Frontend assets are embedded; must exist before compile.
+    - make assets
+
+builds:
+  - id: qbit-filematcher
+    main: ./cmd/qbit-filematcher
+    binary: qbit-filematcher
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+      - "386"
+    ignore:
+      # Match `make build-all` (no linux/darwin 386).
+      - goos: linux
+        goarch: "386"
+      - goos: darwin
+        goarch: "386"
+    ldflags:
+      - -s -w
+      - -X {{ .ModulePath }}/cli.Version={{ .Version }}
+      - -X {{ .ModulePath }}/web.Version={{ .Version }}
+
+# Bare binaries (same shape as make build-all → dist/), not tar.gz/zip.
+archives:
+  - formats: [binary]
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+
+checksum:
+  name_template: sha256sum.txt
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  footer: >-
+
+    ---
+
+    Released by [GoReleaser](https://github.com/goreleaser/goreleaser).

@@ -1,0 +1,112 @@
+{{define "match_file_card"}}
+<div id="file-{{.File.Index}}" class="rounded border border-slate-800 p-4">
+  <p class="text-sm font-medium">{{.File.Path}} <span class="text-slate-500">({{.File.Size}} bytes)</span></p>
+  {{if .File.Candidates}}
+  <ul class="mt-2 space-y-1 text-sm">
+    {{range $i, $c := .File.Candidates}}
+    <li>
+      <form
+        class="flex items-center gap-2"
+        hx-post="/match/{{$.Hash}}/select"
+        hx-target="#file-{{$.File.Index}}"
+        hx-swap="outerHTML"
+        hx-include="#incomplete-flag"
+      >
+        <input type="hidden" name="file" value="{{$.File.Index}}" />
+        <input type="hidden" name="candidate" value="{{$i}}" />
+        <button type="submit"
+          class="rounded border px-2 py-0.5 text-xs {{if eq $i $.File.SelectedIndex}}{{if eq $.File.SelectedIndex $.File.AutoIndex}}border-cyan-500 text-cyan-300{{else}}border-emerald-500 text-emerald-300{{end}}{{else}}border-slate-700 text-slate-400 hover:border-slate-500{{end}}">
+          {{if eq $i $.File.SelectedIndex}}selected{{else}}select{{end}}
+        </button>
+        <span class="font-mono text-xs text-slate-300">{{$c}}</span>
+      </form>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="mt-2 text-sm text-slate-500">No matches</p>
+  {{end}}
+</div>
+{{end}}
+
+{{define "plan_icon_folder"}}
+<svg class="h-3.5 w-3.5 shrink-0 text-amber-400/90" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+  <path d="M2 6a2 2 0 012-2h5l2 2h9a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
+</svg>
+{{end}}
+
+{{define "plan_icon_file"}}
+<svg class="h-3.5 w-3.5 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+  <path stroke-linecap="round" stroke-linejoin="round" d="M7 3.75h6.75L19.5 9.5V20.25A.75.75 0 0118.75 21H7.25a.75.75 0 01-.75-.75V4.5A.75.75 0 017.25 3.75z"/>
+  <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 3.75V9.5h5.75"/>
+</svg>
+{{end}}
+
+{{define "plan_tree"}}
+{{if .}}
+<ul class="mt-1 space-y-0.5 border-l border-slate-700 pl-3">
+  {{range .}}
+  <li>
+    {{if .Children}}
+    <details open class="group">
+      <summary class="flex cursor-pointer list-none items-center gap-1.5 text-slate-400 hover:text-slate-200 [&::-webkit-details-marker]:hidden">
+        <svg class="h-3 w-3 shrink-0 text-slate-500 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M9 5.25l7.5 6.75L9 18.75V5.25z"/>
+        </svg>
+        {{template "plan_icon_folder" .}}
+        <span>{{.Name}}</span>
+      </summary>
+      {{template "plan_tree" .Children}}
+    </details>
+    {{else}}
+    <span class="flex items-center gap-1.5 text-slate-200">
+      {{template "plan_icon_file" .}}
+      <span>{{.Name}}</span>
+    </span>
+    {{end}}
+  </li>
+  {{end}}
+</ul>
+{{end}}
+{{end}}
+
+{{define "match_plan_body"}}
+{{if .PlanErr}}
+<p class="text-sm text-rose-300">Plan: {{.PlanErr}}</p>
+{{end}}
+{{if .PlanHint}}
+<p class="text-sm text-slate-500">{{.PlanHint}}</p>
+{{end}}
+{{if .Plan}}
+<div class="rounded border border-slate-800 bg-slate-900/40 p-4 text-sm">
+  {{if .Plan.IsIncomplete}}
+  <p class="mb-2 text-amber-300/90">Incomplete plan — unmatched files keep their torrent-relative paths; qBittorrent will recheck on next start.</p>
+  {{end}}
+  <p class="flex items-center gap-1.5 font-mono text-xs text-cyan-300">
+    {{template "plan_icon_folder" .}}
+    <span>{{.Plan.SavePath}}/</span>
+  </p>
+  <div class="mt-1 font-mono text-xs text-slate-300">
+    {{template "plan_tree" .PlanTree}}
+  </div>
+</div>
+{{end}}
+{{end}}
+
+{{define "match_plan_panel"}}
+<div id="match-plan" class="space-y-4" data-conflicts="{{json .ConflictIndexes}}">
+  {{template "match_plan_body" .}}
+</div>
+{{end}}
+
+{{define "match_select_response.html"}}
+{{template "match_file_card" .FileCard}}
+{{with .Torrent}}
+<div id="match-plan" hx-swap-oob="true" class="space-y-4" data-conflicts="{{json .ConflictIndexes}}">
+  {{template "match_plan_body" .}}
+  {{if and (not .Plan) (not .PlanErr) (not .PlanHint)}}
+  <p class="text-sm text-slate-500">No plan available yet.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}

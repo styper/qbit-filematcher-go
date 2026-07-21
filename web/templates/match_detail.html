@@ -1,0 +1,207 @@
+{{define "match_detail.html"}}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {{template "head" .}}
+  </head>
+  <body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+    {{template "nav" .}}
+    <main class="mx-auto max-w-5xl px-6 py-8">
+      {{template "flash" .}}
+      {{with .Torrent}}
+      <section
+        class="space-y-6"
+        x-data="{
+          filter: 'all',
+          conflicts: {},
+          counts: { all: 0, none: 0, matched: 0, multiple: 0, errors: 0 },
+          setConflicts(arr) {
+            const next = {};
+            (arr || []).forEach((i) => { next[i] = true; });
+            this.conflicts = next;
+            this.recount();
+          },
+          recount() {
+            const cards = this.$refs.files.querySelectorAll('[data-file-index]');
+            this.counts.all = cards.length;
+            this.counts.none = 0;
+            this.counts.matched = 0;
+            this.counts.multiple = 0;
+            this.counts.errors = 0;
+            cards.forEach((el) => {
+              const n = Number(el.dataset.matchCount);
+              const idx = Number(el.dataset.fileIndex);
+              if (n === 0) this.counts.none++;
+              else if (n === 1) this.counts.matched++;
+              else this.counts.multiple++;
+              if (this.conflicts[idx]) this.counts.errors++;
+            });
+          },
+          show(el) {
+            const n = Number(el.dataset.matchCount);
+            const idx = Number(el.dataset.fileIndex);
+            if (this.filter === 'all') return true;
+            if (this.filter === 'none') return n === 0;
+            if (this.filter === 'matched') return n === 1;
+            if (this.filter === 'multiple') return n > 1;
+            if (this.filter === 'errors') return !!this.conflicts[idx];
+            return true;
+          },
+          get emptyFilter() {
+            if (this.filter === 'all') return this.counts.all === 0;
+            return this.counts[this.filter] === 0;
+          },
+          syncConflicts() {
+            const el = document.getElementById('match-plan');
+            if (!el) return;
+            try {
+              this.setConflicts(JSON.parse(el.getAttribute('data-conflicts') || '[]'));
+            } catch (_) {
+              this.setConflicts([]);
+            }
+          },
+          init() {
+            this.syncConflicts();
+            const sync = () => this.syncConflicts();
+            document.body.addEventListener('htmx:afterSwap', sync);
+            document.body.addEventListener('htmx:oobAfterSwap', sync);
+          }
+        }"
+      >
+        <div>
+          <a href="/match" class="text-sm text-slate-400 hover:text-slate-200">← Back</a>
+          <h1 class="mt-2 text-2xl font-semibold">{{.Name}}</h1>
+          <p class="mt-1.5 font-mono text-xs text-slate-500">{{.Hash}}</p>
+          <p class="mt-1 text-sm text-slate-400">Status: {{.Status}}{{if .Tags}} · Tags: {{join .Tags ", "}}{{end}}</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs uppercase tracking-wide text-slate-500">Files</span>
+          <template x-for="opt in [
+            { id: 'all', label: 'All' },
+            { id: 'none', label: 'No matches' },
+            { id: 'matched', label: 'Matched' },
+            { id: 'multiple', label: 'Multiple matches' },
+            { id: 'errors', label: 'Errors' }
+          ]" :key="opt.id">
+            <button
+              type="button"
+              class="rounded border px-3 py-1 text-xs"
+              :class="filter === opt.id
+                ? (opt.id === 'errors' ? 'border-rose-500 text-rose-300' : 'border-cyan-500 text-cyan-300')
+                : 'border-slate-700 text-slate-400 hover:border-slate-500'"
+              @click="filter = opt.id"
+            >
+              <span x-text="opt.label"></span>
+              <span class="text-slate-500" x-text="'(' + counts[opt.id] + ')'"></span>
+            </button>
+          </template>
+        </div>
+
+        <div x-ref="files" class="space-y-4">
+          {{range .Files}}
+          <div
+            data-match-count="{{len .Candidates}}"
+            data-file-index="{{.Index}}"
+            class="rounded-lg transition-colors"
+            :class="conflicts[{{.Index}}]
+              ? 'bg-rose-950/50 ring-1 ring-rose-500/40'
+              : ({{len .Candidates}} === 1 ? 'bg-emerald-900/40' : '')"
+            x-show="show($el)"
+          >
+            {{template "match_file_card" (dict "Hash" $.Torrent.Hash "File" .)}}
+          </div>
+          {{end}}
+          <p x-show="emptyFilter" x-cloak class="text-sm text-slate-500">No files in this filter.</p>
+        </div>
+
+        {{template "match_plan_panel" .}}
+
+        <form
+          method="post"
+          action="/match/{{.Hash}}/save"
+          class="flex flex-wrap items-center gap-3"
+          x-data="{
+            canSave: {{json .CanSave}},
+            requiresIncomplete: {{json (eq .Status "partial_match")}},
+            allMatchedSingle: {{json (and (eq .Status "all_matches") .AllSingleMatch)}},
+            allowIncomplete: false,
+            get incompleteEnabled() {
+              return this.requiresIncomplete;
+            },
+            get saveEnabled() {
+              return this.canSave && (!this.requiresIncomplete || this.allowIncomplete);
+            },
+            get saveButtonClass() {
+              if (!this.saveEnabled) {
+                return 'cursor-not-allowed bg-slate-800 text-slate-500';
+              }
+              if (this.allMatchedSingle) {
+                return 'bg-emerald-500 text-slate-950 hover:bg-emerald-400';
+              }
+              return 'bg-cyan-500 text-slate-950 hover:bg-cyan-400';
+            }
+          }"
+        >
+          <label class="flex items-center gap-2 text-sm" :class="incompleteEnabled ? 'text-slate-300' : 'text-slate-600'">
+            <input
+              id="incomplete-flag"
+              type="checkbox"
+              name="incomplete"
+              value="1"
+              class="rounded border-slate-600"
+              :disabled="!incompleteEnabled"
+              x-model="allowIncomplete"
+              hx-get="/match/{{.Hash}}/plan"
+              hx-trigger="change"
+              hx-include="this"
+              hx-target="#match-plan"
+              hx-swap="outerHTML"
+            />
+            Allow incomplete
+          </label>
+          <button
+            type="submit"
+            class="rounded px-4 py-2 text-sm font-medium"
+            :class="saveButtonClass"
+            :disabled="!saveEnabled"
+            :title="!canSave ? 'No matches to save' : (requiresIncomplete && !allowIncomplete ? 'Enable Allow incomplete to save a partial match' : '')"
+          >
+            Save fastresume
+          </button>
+          <span x-show="!canSave" x-cloak class="text-sm text-slate-500">Unavailable while status is no_matches.</span>
+          <span x-show="canSave && requiresIncomplete && !allowIncomplete" x-cloak class="text-sm text-slate-500">Check Allow incomplete to save a partial match.</span>
+        </form>
+      </section>
+
+      <div class="fixed bottom-6 right-6 z-20 flex flex-col gap-2">
+        <button
+          type="button"
+          class="rounded border border-slate-700 bg-slate-950/90 px-3 py-2 text-xs text-slate-300 shadow-lg backdrop-blur hover:border-slate-500 hover:text-white"
+          onclick="window.scrollTo({ top: 0, behavior: 'smooth' })"
+          title="Go to top"
+        >
+          ↑ Top
+        </button>
+        <button
+          type="button"
+          class="rounded border border-slate-700 bg-slate-950/90 px-3 py-2 text-xs text-slate-300 shadow-lg backdrop-blur hover:border-slate-500 hover:text-white"
+          onclick="document.getElementById('match-plan')?.scrollIntoView({ behavior: 'smooth', block: 'start' })"
+          title="Go to plan"
+        >
+          Plan
+        </button>
+        <button
+          type="button"
+          class="rounded border border-slate-700 bg-slate-950/90 px-3 py-2 text-xs text-slate-300 shadow-lg backdrop-blur hover:border-slate-500 hover:text-white"
+          onclick="window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })"
+          title="Go to bottom"
+        >
+          ↓ Bottom
+        </button>
+      </div>
+      {{end}}
+    </main>
+  </body>
+</html>
+{{end}}

@@ -1,0 +1,2 @@
+# Placeholder so `go:embed static/*` succeeds before `make assets`.
+# Vendor JS/CSS are downloaded by the Makefile and must not be committed.

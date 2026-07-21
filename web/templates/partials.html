@@ -1,0 +1,78 @@
+{{define "head"}}
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{{.Title}} · qBit Filematcher</title>
+<link rel="icon" href="{{iconURL}}" type="image/svg+xml" />
+<link rel="stylesheet" href="{{staticURL "app.css"}}" />
+<script defer src="{{staticURL "htmx.min.js"}}"></script>
+<script defer src="{{staticURL "alpine.min.js"}}"></script>
+{{end}}
+
+{{define "nav"}}
+<header
+  class="border-b border-slate-800"
+  x-data="{
+    running: null,
+    error: '',
+    get label() {
+      if (this.error) return 'qBittorrent status unknown';
+      if (this.running === true) return 'qBittorrent running';
+      if (this.running === false) return 'qBittorrent not running';
+      return 'Checking qBittorrent…';
+    },
+    async refresh() {
+      try {
+        const res = await fetch('/api/qbittorrent');
+        const data = await res.json();
+        this.error = data.error || '';
+        this.running = this.error ? null : !!data.running;
+      } catch (_) {
+        this.error = 'unreachable';
+        this.running = null;
+      }
+    },
+    start() {
+      this.refresh();
+      setInterval(() => this.refresh(), 5000);
+    }
+  }"
+  x-init="start()"
+>
+  <div class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-4">
+    <div class="flex items-center gap-2">
+      <a href="/" class="flex items-center gap-2 text-sm font-semibold tracking-[0.18em] uppercase text-cyan-400">
+        <img src="{{iconURL}}" alt="" width="24" height="24" class="h-6 w-6 rounded-md" />
+        <span>qBit Filematcher</span>
+      </a>
+      {{if .Version}}<span class="text-xs text-slate-500">{{.Version}}</span>{{end}}
+    </div>
+    <div class="flex items-center gap-6">
+      <div class="flex items-center gap-2 text-xs" :title="error || label">
+        <span
+          class="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+          :class="running === true ? 'bg-rose-500' : (running === false ? 'bg-emerald-500' : 'bg-slate-500')"
+          aria-hidden="true"
+        ></span>
+        <span
+          class="hidden text-xs text-slate-500 sm:inline"
+          x-text="label"
+        ></span>
+      </div>
+      <nav class="flex gap-4 text-sm text-slate-300">
+        <a class="hover:text-white" href="/">Home</a>
+        <a class="hover:text-white" href="/match">Match</a>
+        <a class="hover:text-white" href="/config">Config</a>
+      </nav>
+    </div>
+  </div>
+</header>
+{{end}}
+
+{{define "flash"}}
+{{if .Flash}}
+<p class="mb-6 rounded border border-cyan-900/60 bg-cyan-950/40 px-4 py-3 text-sm text-cyan-100">{{.Flash}}</p>
+{{end}}
+{{if .Error}}
+<p class="mb-6 whitespace-pre-line rounded border border-rose-900/60 bg-rose-950/40 px-4 py-3 text-sm text-rose-100">{{.Error}}</p>
+{{end}}
+{{end}}

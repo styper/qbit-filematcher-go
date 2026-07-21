@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="qBit Filematcher">
+  <!-- App tile -->
+  <rect width="512" height="512" rx="108" fill="#0f172a"/>
+
+  <!-- Large horseshoe magnet, poles up -->
+  <path
+    fill="none"
+    stroke="#22d3ee"
+    stroke-width="96"
+    stroke-linecap="butt"
+    stroke-linejoin="round"
+    d="M128 128v168a128 128 0 0 0 256 0V128"
+  />
+
+  <!-- White pole tips (same width as magnet arms, square ends) -->
+  <rect x="80" y="52" width="96" height="60" fill="#f8fafc"/>
+  <rect x="336" y="52" width="96" height="60" fill="#f8fafc"/>
+
+  <!-- Locator crosshair on the magnet curve -->
+  <g transform="translate(256 256)" fill="none" stroke="#f8fafc" stroke-linecap="round">
+    <circle r="90" stroke-width="23"/>
+    <circle r="22" fill="#f8fafc" stroke="none"/>
+    <line x1="0" y1="-126" x2="0" y2="-68" stroke-width="23"/>
+    <line x1="0" y1="68" x2="0" y2="126" stroke-width="23"/>
+    <line x1="-126" y1="0" x2="-68" y2="0" stroke-width="23"/>
+    <line x1="68" y1="0" x2="126" y2="0" stroke-width="23"/>
+  </g>
+</svg>

@@ -1,0 +1,45 @@
+# Binaries
+/bin/
+/dist/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+coverage.html
+
+# Dependency / build caches
+.tools/
+vendor/
+
+# Frontend vendor assets (fetched by `make assets`; embedded at compile time)
+web/static/*
+!web/static/.keep
+
+# Local config / secrets
+qbit-filematcher.yaml
+config.yaml
+config.yml
+*.env
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Temporary / scratch
+tmp/
+*.log
+*.bak

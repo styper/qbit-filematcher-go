@@ -1,0 +1,55 @@
+{{define "config.html"}}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {{template "head" .}}
+  </head>
+  <body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+    {{template "nav" .}}
+    <main class="mx-auto max-w-5xl px-6 py-8">
+      {{template "flash" .}}
+      <section class="space-y-6">
+        <div>
+          <h1 class="text-2xl font-semibold">Configuration</h1>
+          <p class="mt-1 text-sm text-slate-400">Persisted to qbit-filematcher.yaml for CLI and WEB.</p>
+        </div>
+        <form method="post" action="/config" class="space-y-4">
+          <label class="block space-y-1 text-sm">
+            <span class="text-slate-300">BT_backup location</span>
+            <input name="bt_backup_location" value="{{.Settings.BTBackupLocation}}" required
+              class="w-full rounded border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-xs" />
+            <span class="text-xs text-slate-500">Must exist and be a readable directory.</span>
+          </label>
+          <label class="block space-y-1 text-sm">
+            <span class="text-slate-300">Search paths (one per line)</span>
+            <textarea name="search_paths" rows="4" required
+              class="w-full rounded border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-xs">{{join .Settings.SearchPaths "\n"}}</textarea>
+            <span class="text-xs text-slate-500">At least one path; each must exist and be readable.</span>
+          </label>
+          <label class="block space-y-1 text-sm">
+            <span class="text-slate-300">Exclude directory names (one per line)</span>
+            <textarea name="exclude_dirs" rows="3"
+              class="w-full rounded border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-xs">{{join .Settings.ExcludeDirs "\n"}}</textarea>
+            <span class="text-xs text-slate-500">Base names only (e.g. <code class="text-slate-400">.trash</code>), not full paths.</span>
+          </label>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="block space-y-1 text-sm">
+              <span class="text-slate-300">Host</span>
+              <input name="host" value="{{.Settings.Host}}" required
+                class="w-full rounded border border-slate-700 bg-slate-900 px-3 py-2" />
+              <span class="text-xs text-slate-500">Hostname or IP (e.g. localhost, 0.0.0.0, ::). No port.</span>
+            </label>
+            <label class="block space-y-1 text-sm">
+              <span class="text-slate-300">Port</span>
+              <input name="port" type="number" min="1024" max="65535" value="{{.Settings.Port}}" required
+                class="w-full rounded border border-slate-700 bg-slate-900 px-3 py-2" />
+              <span class="text-xs text-slate-500">1024–65535 (non-root).</span>
+            </label>
+          </div>
+          <button type="submit" class="rounded bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-cyan-400">Save</button>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>
+{{end}}
