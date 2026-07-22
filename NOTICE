@@ -1,0 +1,21 @@
+Third-party notices for qbit-filematcher
+========================================
+
+This distribution includes third-party software. The qbit-filematcher project
+itself is dedicated to the public domain; see the top-level LICENSE file
+(Unlicense).
+
+Go module licenses
+------------------
+Full license texts are under third_party/go/.
+A machine-readable list is in third_party/licenses.csv.
+
+Embedded web assets (HTMX, Alpine.js)
+-------------------------------------
+These libraries are downloaded at build time and embedded into the binary.
+License texts are under third_party/web/.
+
+Tailwind CSS
+------------
+The Tailwind standalone CLI is a build-time tool only. It is not shipped inside
+the release binary; only generated CSS is.

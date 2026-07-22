@@ -84,6 +84,12 @@ Pages: `/` home, `/config`, `/match` (scan + list), `/match/{hash}` (select cand
 go install github.com/goreleaser/goreleaser/v2@latest
 ```
 
+- [go-licenses](https://github.com/google/go-licenses) (for regenerating `third_party/`):
+
+```bash
+go install github.com/google/go-licenses@latest
+```
+
 ### Build
 
 Frontend vendor sources are **not** committed. Download and build them first:
@@ -108,14 +114,27 @@ make build-linux-arm64     # → dist/qbit-filematcher-linux-arm64
 make build-all             # all OS/arch combos → dist/
 ```
 
-Or with GoReleaser (same targets as `make build-all`, including `make assets`):
+Or with GoReleaser (same OS/arch targets as `make build-all`, including `make assets`):
 
 ```bash
 goreleaser release --snapshot --clean   # local dry-run into dist/
 goreleaser release --clean              # real release (needs a v* tag + GITHUB_TOKEN)
 ```
 
+Release artifacts are versioned archives (`qbit-filematcher_<version>_<os>_<arch>.tar.gz`, `.zip` on Windows). Inside each archive: the binary (`qbit-filematcher` / `.exe`), `LICENSE`, `NOTICE`, `README.md`, and `third_party/` (dependency license texts). `make build-all` still writes bare binaries under `dist/` for local/CI use.
+
 Tagged `v*` pushes run GoReleaser in GitHub Actions (see `.github/workflows/release.yml`).
+
+### Licensing
+
+Project license: [Unlicense](LICENSE) (public domain dedication). See [NOTICE](NOTICE) for third-party overview.
+
+License texts for Go modules and embedded HTMX/Alpine live under `third_party/` (included in release archives):
+
+```bash
+make licenses        # regenerate third_party/ after dependency or asset version changes
+make licenses-check  # CI gate (also part of make check)
+```
 
 ### Layout
 
@@ -127,6 +146,10 @@ cli/                         CLI commands (match, config, web)
 web/                         WEB application (handlers, templates)
 web/styles/                  Tailwind input CSS (app-owned)
 web/static/                  Downloaded HTMX / Alpine / built CSS (not in git)
+third_party/                 Dependency license texts (Go + HTMX/Alpine)
+scripts/gen-licenses.sh      Regenerates third_party/
+LICENSE                      Unlicense
+NOTICE                       Third-party overview (hand-maintained)
 web/templates/               HTML templates
 web/icon.svg                 App icon (embedded into the binary)
 assets/icon/                 PNG exports of the app icon (512 / 1024)

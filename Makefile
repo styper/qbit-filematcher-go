@@ -64,7 +64,8 @@ TAILWIND_URL := https://github.com/tailwindlabs/tailwindcss/releases/download/$(
 	build-darwin-amd64 build-darwin-arm64 \
 	build-all \
 	icon-pngs \
-	check check-race test test-race fmt fmt-check vet gosec govulncheck tidy \
+	check check-race test test-race fmt fmt-check vet gosec govulncheck \
+	licenses licenses-check tidy \
 	clean clean-bin clean-dist clean-assets clean-tools
 
 # ---------------------------------------------------------------------------
@@ -198,11 +199,11 @@ icon-pngs:
 # Quality / module maintenance
 # ---------------------------------------------------------------------------
 
-## check: Run all quality controls (fmt-check → vet → gosec → govulncheck → test)
-check: fmt-check vet gosec govulncheck test
+## check: Run all quality controls (fmt-check → vet → gosec → govulncheck → licenses-check → test)
+check: fmt-check vet gosec govulncheck licenses-check test
 
 ## check-race: Same as check, with the race detector enabled for tests
-check-race: fmt-check vet gosec govulncheck test-race
+check-race: fmt-check vet gosec govulncheck licenses-check test-race
 
 ## test: Run the full Go test suite
 test:
@@ -239,6 +240,24 @@ gosec:
 ## govulncheck: Scan dependencies for known vulns (go run; not a module dependency)
 govulncheck:
 	$(GO) run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+## licenses: Regenerate third_party/ (Go deps + HTMX/Alpine license texts)
+licenses:
+	HTMX_VERSION=$(HTMX_VERSION) ALPINE_VERSION=$(ALPINE_VERSION) \
+		bash scripts/gen-licenses.sh
+
+## licenses-check: Fail if third_party/ is out of date vs make licenses
+licenses-check:
+	@tmp=$$(mktemp -d); \
+	trap 'rm -rf "$$tmp"' EXIT; \
+	HTMX_VERSION=$(HTMX_VERSION) ALPINE_VERSION=$(ALPINE_VERSION) \
+		THIRD_PARTY_DIR="$$tmp/third_party" bash scripts/gen-licenses.sh; \
+	if ! diff -ru third_party "$$tmp/third_party"; then \
+		echo; \
+		echo "third_party/ is out of date. Run: make licenses && commit the result."; \
+		exit 1; \
+	fi; \
+	echo "third_party/ is up to date"
 
 ## tidy: Sync go.mod / go.sum with go mod tidy
 tidy:

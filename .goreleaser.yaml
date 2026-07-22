@@ -35,13 +35,22 @@ builds:
       - -X {{ .ModulePath }}/cli.Version={{ .Version }}
       - -X {{ .ModulePath }}/web.Version={{ .Version }}
 
-# Bare binaries (same shape as make build-all → dist/), not tar.gz/zip.
+# Archives contain the bare binary (qbit-filematcher / qbit-filematcher.exe).
+# Version / OS / arch live only in the archive filename.
 archives:
-  - formats: [binary]
-    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - NOTICE
+      - README.md
+      - third_party
 
 checksum:
-  name_template: sha256sum.txt
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
   algorithm: sha256
 
 changelog:
