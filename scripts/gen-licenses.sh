@@ -61,7 +61,7 @@ mkdir -p "$THIRD_PARTY_DIR"
 {
 	"${GO_LICENSES[@]}" report "$CMD_PKG" 2>/dev/null || true
 	GOOS=windows "${GO_LICENSES[@]}" report "$CMD_PKG" 2>/dev/null || true
-} | grep -v "^${MODULE}," | sort -u >"$CSV"
+} | grep -v "^${MODULE}," | LC_ALL=C sort -u >"$CSV"
 
 echo "→ fetching embedded web asset licenses"
 mkdir -p "$OUT_WEB"
