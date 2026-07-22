@@ -11,6 +11,8 @@ One binary, two modes:
 | CLI | `qbit-filematcher match` / `config` | flags / prompts |
 | WEB | `qbit-filematcher web` | HTMX + Alpine.js + Tailwind CSS |
 
+![WEB home — rematch moved torrent files](assets/screenshots/web-home.png)
+
 ## What it does
 
 1. Load torrents from `BT_backup`
@@ -153,6 +155,7 @@ NOTICE                       Third-party overview (hand-maintained)
 web/templates/               HTML templates
 web/icon.svg                 App icon (embedded into the binary)
 assets/icon/                 PNG exports of the app icon (512 / 1024)
+assets/screenshots/          README screenshots
 ```
 
 ### Library usage
