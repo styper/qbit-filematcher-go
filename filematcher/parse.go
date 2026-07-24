@@ -17,20 +17,20 @@ import (
 func LoadTorrent(paths Paths, hashV1 string) (*Torrent, error) {
 	torrentRaw, err := os.ReadFile(paths.TorrentFile)
 	if err != nil {
-		return nil, fmt.Errorf("%w: cannot read %s: %v", ErrParse, filepath.Base(paths.TorrentFile), err)
+		return nil, fmt.Errorf("%w: cannot read %s: %w", ErrParse, filepath.Base(paths.TorrentFile), err)
 	}
 	fastresumeRaw, err := os.ReadFile(paths.FastresumeFile)
 	if err != nil {
-		return nil, fmt.Errorf("%w: cannot read %s: %v", ErrParse, filepath.Base(paths.FastresumeFile), err)
+		return nil, fmt.Errorf("%w: cannot read %s: %w", ErrParse, filepath.Base(paths.FastresumeFile), err)
 	}
 
 	torrentDict, err := decodeBencodeDict(torrentRaw)
 	if err != nil {
-		return nil, fmt.Errorf("%w: cannot decode %s: %v", ErrParse, filepath.Base(paths.TorrentFile), err)
+		return nil, fmt.Errorf("%w: cannot decode %s: %w", ErrParse, filepath.Base(paths.TorrentFile), err)
 	}
 	fastresumeDict, err := decodeBencodeDict(fastresumeRaw)
 	if err != nil {
-		return nil, fmt.Errorf("%w: cannot decode %s: %v", ErrParse, filepath.Base(paths.FastresumeFile), err)
+		return nil, fmt.Errorf("%w: cannot decode %s: %w", ErrParse, filepath.Base(paths.FastresumeFile), err)
 	}
 
 	info, err := parseInfo(hashV1, torrentDict, fastresumeDict, filepath.Base(paths.TorrentFile), filepath.Base(paths.FastresumeFile))
@@ -79,7 +79,7 @@ func parseInfo(
 	if hashV1 == "" {
 		encoded, err := encodeBencode(infoDict)
 		if err != nil {
-			return Info{}, fmt.Errorf("%w: %s: cannot encode info dict: %v", ErrParse, torrentName, err)
+			return Info{}, fmt.Errorf("%w: %s: cannot encode info dict: %w", ErrParse, torrentName, err)
 		}
 		sum := sha1.Sum(encoded) // #nosec G401 -- BEP 3 infohash is SHA-1.
 		hashV1 = fmt.Sprintf("%x", sum[:])

@@ -13,6 +13,12 @@ One binary, two modes:
 
 ![WEB home — rematch moved torrent files](assets/screenshots/web-home.png)
 
+## Install
+
+Download a release for your OS/arch from [GitHub Releases](https://github.com/styper/qbit-filematcher-go/releases).
+
+Put the binary on your `PATH`, or run it from the extracted directory.
+
 ## What it does
 
 1. Load torrents from `BT_backup`
@@ -44,18 +50,152 @@ Persisted keys:
 
 ## CLI
 
-```bash
-qbit-filematcher match \
-  -b ~/.local/share/data/qBittorrent/BT_backup \
-  -s /data/media \
-  -e .trash -e .git \
-  --auto --dry-run
+Run `qbit-filematcher --help` (or `qbit-filematcher <command> --help`) anytime for the same text.
 
-qbit-filematcher config view
-qbit-filematcher config edit
+### Root
+
+```text
+qbit-filematcher rematches on-disk files to qBittorrent torrents via BT_backup (no Web API).
+
+Usage:
+  qbit-filematcher [command]
+
+Examples:
+  qbit-filematcher match -b ~/.local/share/data/qBittorrent/BT_backup -s /data/media --auto
+  qbit-filematcher match --dry-run -s /data/media
+  qbit-filematcher config view
+  qbit-filematcher web --host localhost --port 8080
+
+Available Commands:
+  completion  Generate the autocompletion script for the specified shell
+  config      View, edit, or remove persisted settings
+  help        Help about any command
+  match       Scan disk and update fastresume files
+  version     Print version
+  web         Start the web UI server
+
+Flags:
+      --config string   path to qbit-filematcher.yaml (default: next to binary, then user config dir)
+  -h, --help            help for qbit-filematcher
+  -v, --version         version for qbit-filematcher
+
+Use "qbit-filematcher [command] --help" for more information about a command.
 ```
 
-Useful flags: `-a`/`--hash`, `-t`/`--tag`, `-n`/`--name`, `--incomplete`, `--dry-run`, `--auto`, `--config`.
+| Command / flag | Meaning |
+|----------------|---------|
+| `match` | Scan search paths and update `.fastresume` files (main workflow). |
+| `config` | View, interactively edit, or delete persisted settings. |
+| `web` | Start the embedded WEB UI (`serve` is an alias). |
+| `version` | Print the binary version. |
+| `completion` | Generate shell completion scripts (bash / zsh / fish / powershell). |
+| `help` | Show help for any command. |
+| `--config` | Explicit path to `qbit-filematcher.yaml` (otherwise binary-dir, then user config dir). |
+| `-h` / `--help` | Show help. |
+| `-v` / `--version` | Same as `version`. |
+
+### `match`
+
+```text
+Scan disk and update fastresume files.
+
+Path settings come from the config file; flags below override when set.
+After merge, --bt-backup and at least one --search path are required.
+
+Usage:
+  qbit-filematcher match [flags]
+
+Examples:
+  qbit-filematcher match -b ~/.local/share/data/qBittorrent/BT_backup -s /data/media --auto
+  qbit-filematcher match --dry-run -s /data/media
+  qbit-filematcher match -s /data/media -s /mnt/nas/media
+  qbit-filematcher match -s "/data/My Media" -s /mnt/nas/media
+
+Config Overrides:
+  -b, --bt-backup string      BT_backup directory (overrides config; required after merge)
+  -s, --search stringArray    search path (repeatable; overrides config; required after merge)
+  -e, --exclude stringArray   directory name to exclude (repeatable; overrides config)
+
+Flags:
+      --auto         auto-select best candidates when multiple matches exist
+      --incomplete   allow incomplete torrents
+      --dry-run      print plans without writing fastresume files
+
+Filters:
+  -a, --hash stringArray   torrent hash v1 filter (repeatable)
+  -t, --tag stringArray    tag filter (repeatable; all tags required)
+  -n, --name stringArray   name token filter (repeatable)
+
+Global Flags:
+      --config string   path to qbit-filematcher.yaml (default: next to binary, then user config dir)
+```
+
+| Flag | Meaning |
+|------|---------|
+| `-b` / `--bt-backup` | qBittorrent `BT_backup` directory. Overrides config; required after merge with config. |
+| `-s` / `--search` | Root directory to scan for candidate files. Repeatable; overrides config; at least one required after merge. |
+| `-e` / `--exclude` | Directory **name** to skip while scanning (e.g. `.trash`, `.git`). Repeatable; overrides config. |
+| `--auto` | When several candidates match a torrent file, pick the best automatically instead of prompting. |
+| `--incomplete` | Include incomplete torrents; saving clears piece data so qBittorrent rechecks on next start. |
+| `--dry-run` | Print the planned `save_path` / `mapped_files` changes without writing. Skips the “qBittorrent must be closed” check. |
+| `-a` / `--hash` | Only process torrents whose v1 info-hash matches (repeatable). |
+| `-t` / `--tag` | Only process torrents that have **all** listed tags (repeatable). |
+| `-n` / `--name` | Only process torrents whose name contains each token (repeatable). |
+
+Without `--auto`, the CLI prompts when a file has multiple candidates. Saves are refused while qBittorrent appears to be running (unless `--dry-run`).
+
+### `config`
+
+```text
+View, edit, or remove persisted settings
+
+Usage:
+  qbit-filematcher config [command]
+
+Available Commands:
+  edit        Interactively edit settings
+  remove      Delete the config file
+  view        Print current settings
+
+Flags:
+  -h, --help   help for config
+
+Global Flags:
+      --config string   path to qbit-filematcher.yaml (default: next to binary, then user config dir)
+
+Use "qbit-filematcher config [command] --help" for more information about a command.
+```
+
+| Subcommand | Meaning |
+|------------|---------|
+| `view` | Print the resolved config path and current settings (`bt_backup_location`, `search_paths`, `exclude_dirs`, `host`, `port`). |
+| `edit` | Prompt for each setting, then confirm before writing the YAML file. |
+| `remove` | Ask for confirmation (`yes`), then delete the config file. |
+
+### `web`
+
+```text
+Start the web UI server
+
+Usage:
+  qbit-filematcher web [flags]
+
+Aliases:
+  web, serve
+
+Flags:
+  -h, --help          help for web
+  -o, --host string   listen host (default: from config or localhost)
+  -p, --port int      listen port (default: from config or 8080)
+
+Global Flags:
+      --config string   path to qbit-filematcher.yaml (default: next to binary, then user config dir)
+```
+
+| Flag | Meaning |
+|------|---------|
+| `-o` / `--host` | Listen address. Defaults to config `host`, else `localhost`. |
+| `-p` / `--port` | Listen port. Defaults to config `port`, else `8080`. |
 
 ## WEB
 
@@ -65,149 +205,52 @@ qbit-filematcher web --host localhost --port 8080
 
 Pages: `/` home, `/config`, `/match` (scan + list), `/match/{hash}` (select candidates + save).
 
+### Match list (`/match`)
+
+Filter the table with a **name / hash / tag** search box and **Match Status** pills (`All` / `Changed` / `Partial` / `Current` / `None`). Filters and column sort persist for the browser tab until you run a new Scan.
+
+Select torrents with checkboxes (header checkbox = all **visible** rows), then **Start queue** to walk them one-by-one on the detail page. Queue order follows the current table sort; already-Current rows are omitted. On each detail screen, Save advances to the next item; use Skip / Back / Leave queue as needed. Progress is shown as “N of M”. The queue is stored in the tab’s `sessionStorage` and cleared on Scan, Leave queue, or when finished.
+
+**Match Status** column (colored dot + short label; hover for the full description):
+
+| Display | Meaning |
+|---------|---------|
+| ● Current (green) | All files matched; selected paths already match the fastresume (nothing to save) |
+| ● Changed (amber) | All files matched; at least one selected path differs from the fastresume |
+| ● Partial (slate) | Some files have candidates; others are still unmatched |
+| ● None (red) | No on-disk candidates found for any file |
+
+### Torrent detail (`/match/{hash}`)
+
+**File card background:**
+
+| Look | Meaning |
+|------|---------|
+| Green tint | Exactly one candidate for that file (unambiguous) |
+| Amber tint | Multiple candidates — pick one |
+| Rose tint / ring | Selected path conflicts with another file (duplicate selection) |
+| Default | Zero candidates |
+
+**Candidate `selected` / `select` buttons:**
+
+| Look | Meaning |
+|------|---------|
+| Cyan border | Currently selected, and it is still the auto-picked choice |
+| Green border | Currently selected, but you overrode the auto pick |
+| Slate border | Not selected (`select`) |
+
+**Save fastresume** is green when every file has exactly one candidate; cyan otherwise. It stays disabled when Match Status is Current (no-op save), when it is None, or when Partial needs **Allow incomplete**.
+
 ## Safety notes
 
 - Every fastresume update writes a timestamped `.bak` beside the original.
 - Saves refuse to run while qBittorrent appears to be running (CLI/WEB and library default).
 - Incomplete matches (when allowed) clear piece data so qBittorrent rechecks on next start.
 
----
+## License
+
+[Unlicense](LICENSE) (public domain dedication). See [NOTICE](NOTICE) for third-party overview.
 
 ## Development
 
-### Prerequisites
-
-- Go 1.22+
-- `curl` (to fetch frontend assets)
-- qBittorrent installed locally (for a real `BT_backup`)
-- [GoReleaser](https://goreleaser.com/) v2 (optional; for release builds):
-
-```bash
-go install github.com/goreleaser/goreleaser/v2@latest
-```
-
-- [go-licenses](https://github.com/google/go-licenses) (for regenerating `third_party/`):
-
-```bash
-go install github.com/google/go-licenses@latest
-```
-
-### Build
-
-Frontend vendor sources are **not** committed. Download and build them first:
-
-```bash
-make assets
-make build
-```
-
-Outputs a single binary at `bin/qbit-filematcher`.
-
-```bash
-make help                  # list all Makefile targets
-make build VERSION=1.0.0   # stamp a release version into the binary
-```
-
-Cross-compile with Make:
-
-```bash
-make build-windows-amd64   # → dist/qbit-filematcher-windows-amd64.exe
-make build-linux-arm64     # → dist/qbit-filematcher-linux-arm64
-make build-all             # all OS/arch combos → dist/
-```
-
-Or with GoReleaser (same OS/arch targets as `make build-all`, including `make assets`):
-
-```bash
-goreleaser release --snapshot --clean   # local dry-run into dist/
-goreleaser release --clean              # real release (needs a v* tag + GITHUB_TOKEN)
-```
-
-Release artifacts are versioned archives (`qbit-filematcher_<version>_<os>_<arch>.tar.gz`, `.zip` on Windows). Inside each archive: the binary (`qbit-filematcher` / `.exe`), `LICENSE`, `NOTICE`, `README.md`, and `third_party/` (dependency license texts). `make build-all` still writes bare binaries under `dist/` for local/CI use.
-
-Tagged `v*` pushes run GoReleaser in GitHub Actions (see `.github/workflows/release.yml`).
-
-### Licensing
-
-Project license: [Unlicense](LICENSE) (public domain dedication). See [NOTICE](NOTICE) for third-party overview.
-
-License texts for Go modules and embedded HTMX/Alpine live under `third_party/` (included in release archives):
-
-```bash
-make licenses        # regenerate third_party/ after dependency or asset version changes
-make licenses-check  # CI gate (also part of make check)
-```
-
-### Layout
-
-```text
-filematcher/                 Standalone core library (importable)
-config/                      Shared YAML settings
-cmd/qbit-filematcher/        Single binary entrypoint (CLI + WEB)
-cli/                         CLI commands (match, config, web)
-web/                         WEB application (handlers, templates)
-web/styles/                  Tailwind input CSS (app-owned)
-web/static/                  Downloaded HTMX / Alpine / built CSS (not in git)
-third_party/                 Dependency license texts (Go + HTMX/Alpine)
-scripts/gen-licenses.sh      Regenerates third_party/
-LICENSE                      Unlicense
-NOTICE                       Third-party overview (hand-maintained)
-web/templates/               HTML templates
-web/icon.svg                 App icon (embedded into the binary)
-assets/icon/                 PNG exports of the app icon (512 / 1024)
-assets/screenshots/          README screenshots
-```
-
-### Library usage
-
-```go
-import "github.com/styper/qbit-filematcher-go/filematcher"
-
-lib, err := filematcher.LoadLibrary(btBackup, filematcher.LoadOptions{})
-if err != nil {
-    return err
-}
-
-filtered := lib.Filter(filematcher.FilterOptions{Tags: []string{"linux"}, MatchAllTags: true})
-torrents := filtered.List()
-
-if _, err := filematcher.Scan(context.Background(), torrents, filematcher.ScanOptions{
-    SearchPaths: []string{"/data/media"},
-    ExcludeDirs: []string{".git", ".trash"},
-    SelectBest:  true,
-}); err != nil {
-    return err
-}
-
-for _, t := range torrents {
-    plan, err := t.MakePlan(filematcher.PlanOptions{})
-    if err != nil {
-        return err
-    }
-    if _, err := t.Save(plan, filematcher.DefaultSaveOptions()); err != nil {
-        return err
-    }
-}
-```
-
-### Quality checks
-
-```bash
-make fmt         # rewrite Go sources with gofmt
-make check       # fmt-check → vet → gosec → govulncheck → test
-make check-race  # same, with race detector for tests
-make gosec       # static security analysis only
-make govulncheck # dependency vulnerability scan only
-make build-all   # cross-compile → dist/
-make tidy
-make clean       # removes bin/, dist/, .tools/, and downloaded static assets
-make icon-pngs   # regenerate assets/icon PNGs from web/icon.svg
-```
-
-## Roadmap
-
-- **Packaging**:
-  - Windows
-  - macOS
-  - Linux
-- **Signed releases**
+Build from source, library usage, and checks: see [CONTRIBUTING.md](CONTRIBUTING.md).

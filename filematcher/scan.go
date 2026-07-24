@@ -30,6 +30,8 @@ type lookupKey struct {
 //
 // ctx may cancel a long walk; when cancelled, Scan returns the pairs added
 // so far and ctx.Err().
+//
+//nolint:gocyclo // hot path: keep matching branches inline for scan speed
 func Scan(ctx context.Context, torrents []*Torrent, opts ScanOptions) (int, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -185,9 +187,8 @@ func (t *Torrent) SelectBestMatches() {
 
 func bestMatchIndex(savePath, torrentName, filePath string, candidates []string) int {
 	rel := filepath.FromSlash(filePath)
-	expected := ""
 	if savePath != "" {
-		expected = filepath.Clean(filepath.Join(savePath, rel))
+		expected := filepath.Clean(filepath.Join(savePath, rel))
 		for i, c := range candidates {
 			if filepath.Clean(c) == expected {
 				return i

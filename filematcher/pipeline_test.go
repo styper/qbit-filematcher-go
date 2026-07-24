@@ -96,6 +96,9 @@ func TestLoadScanPlanSave(t *testing.T) {
 	if !written {
 		t.Fatal("expected write")
 	}
+	if got := tor.LocationStatus(); got != LocationCurrent {
+		t.Fatalf("after save: LocationStatus=%s, want current", got)
+	}
 
 	tor2, err := LoadTorrent(Paths{TorrentFile: torrentPath, FastresumeFile: frPath}, hash)
 	if err != nil {

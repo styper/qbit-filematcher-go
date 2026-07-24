@@ -1,3 +1,4 @@
+// Package web serves the HTMX/Alpine web UI.
 package web
 
 import (
@@ -170,17 +171,20 @@ type pageData struct {
 }
 
 type torrentRow struct {
-	Hash   string `json:"hash"`
-	Name   string `json:"name"`
-	Status string `json:"status"`
-	Tags   string `json:"tags"`
-	Files  int    `json:"files"`
+	Hash     string `json:"hash"`
+	Name     string `json:"name"`
+	Status   string `json:"status"`
+	Location string `json:"location"` // none | incomplete | current | changed
+	Tags     string `json:"tags"`
+	Files    int    `json:"files"`
 }
 
 type torrentDetail struct {
 	Hash            string
 	Name            string
 	Status          string
+	Location        string // none | incomplete | current | changed
+	AlreadyCurrent  bool   // LocationCurrent — save would be a no-op
 	CanSave         bool
 	AllSingleMatch  bool // every real file has exactly one candidate
 	Tags            []string
@@ -236,7 +240,7 @@ func (a *App) setError(msg string) {
 	a.errFlash = msg
 }
 
-func (a *App) handleIcon(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleIcon(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	_, _ = w.Write(iconSVG)
@@ -274,7 +278,7 @@ func (a *App) renderNotFound(w http.ResponseWriter, data pageData) {
 	}
 }
 
-func (a *App) handleQBittorrentStatus(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleQBittorrentStatus(w http.ResponseWriter, _ *http.Request) {
 	running, err := filematcher.IsQBittorrentRunning()
 	w.Header().Set("Content-Type", "application/json")
 	resp := map[string]any{"running": running}
@@ -285,11 +289,11 @@ func (a *App) handleQBittorrentStatus(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleHome(w http.ResponseWriter, _ *http.Request) {
 	a.render(w, "home.html", pageData{Title: "Home", Flash: a.takeFlash()})
 }
 
-func (a *App) handleConfigGet(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleConfigGet(w http.ResponseWriter, _ *http.Request) {
 	s, err := config.Load(a.Config.ConfigPath)
 	data := pageData{Title: "Config", Flash: a.takeFlash(), Settings: s}
 	if err != nil {
@@ -323,7 +327,7 @@ func (a *App) handleConfigPost(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/config", http.StatusSeeOther)
 }
 
-func (a *App) handleMatchGet(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleMatchGet(w http.ResponseWriter, _ *http.Request) {
 	s, _ := config.Load(a.Config.ConfigPath)
 	data := pageData{
 		Title:    "Match",
@@ -369,7 +373,7 @@ func (a *App) handleMatchScanCancel(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/match", http.StatusSeeOther)
 }
 
-func (a *App) handleMatchScanStatus(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleMatchScanStatus(w http.ResponseWriter, _ *http.Request) {
 	a.mu.Lock()
 	running := a.scanRunning
 	elapsed := 0
@@ -658,11 +662,12 @@ func rowsFromLibrary(lib *filematcher.Library) []*torrentRow {
 	out := make([]*torrentRow, 0, len(list))
 	for _, t := range list {
 		out = append(out, &torrentRow{
-			Hash:   t.Info.HashV1,
-			Name:   t.Info.Name,
-			Status: t.Status().String(),
-			Tags:   strings.Join(t.Info.Tags, ", "),
-			Files:  len(t.Info.RealFiles()),
+			Hash:     t.Info.HashV1,
+			Name:     t.Info.Name,
+			Status:   t.Status().String(),
+			Location: t.LocationStatus().String(),
+			Tags:     strings.Join(t.Info.Tags, ", "),
+			Files:    len(t.Info.RealFiles()),
 		})
 	}
 	return out
@@ -706,12 +711,15 @@ func countNoun(n int, singular, pluralForm string) string {
 }
 
 func detailFromTorrent(t *filematcher.Torrent) *torrentDetail {
+	loc := t.LocationStatus()
 	d := &torrentDetail{
-		Hash:    t.Info.HashV1,
-		Name:    t.Info.Name,
-		Status:  t.Status().String(),
-		CanSave: t.Status() != filematcher.MatchNone,
-		Tags:    t.Info.Tags,
+		Hash:           t.Info.HashV1,
+		Name:           t.Info.Name,
+		Status:         t.Status().String(),
+		Location:       loc.String(),
+		AlreadyCurrent: loc == filematcher.LocationCurrent,
+		CanSave:        t.Status() != filematcher.MatchNone,
+		Tags:           t.Info.Tags,
 	}
 	allSingle := true
 	for _, f := range t.Info.RealFiles() {
@@ -764,7 +772,7 @@ func (a *App) ListenAndServe(ctx context.Context) error {
 		_ = srv.Shutdown(shutdownCtx)
 		return nil
 	case err := <-errCh:
-		if err == http.ErrServerClosed {
+		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
 		return err

@@ -27,7 +27,7 @@ func (a *App) configViewCmd() *cobra.Command {
 		Use:   "view",
 		Short: "Print current settings",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			s, err := config.Load(a.configPath)
 			if err != nil {
 				return err
@@ -48,7 +48,7 @@ func (a *App) configEditCmd() *cobra.Command {
 		Use:   "edit",
 		Short: "Interactively edit settings",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return a.editConfig(a.configPath)
 		},
 	}
@@ -59,7 +59,7 @@ func (a *App) configRemoveCmd() *cobra.Command {
 		Use:   "remove",
 		Short: "Delete the config file",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			path := config.Path(a.configPath)
 			if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 				fmt.Fprintln(a.Stdout, "config file does not exist")

@@ -41,7 +41,7 @@ func (t *Torrent) MakePlan(opts PlanOptions) (*SavePlan, error) {
 	}
 	savePath, err := commonPath(parents)
 	if err != nil {
-		return nil, fmt.Errorf("%w: cannot determine save path: %v", ErrNoMatches, err)
+		return nil, fmt.Errorf("%w: cannot determine save path: %w", ErrNoMatches, err)
 	}
 	savePath = oneLevelUp(savePath)
 
@@ -56,7 +56,7 @@ func (t *Torrent) MakePlan(opts PlanOptions) (*SavePlan, error) {
 		if m != nil && m.HasMatch() {
 			rel, err := filepath.Rel(savePath, m.Selected())
 			if err != nil {
-				return nil, fmt.Errorf("%w: %v", ErrInvalidPlan, err)
+				return nil, fmt.Errorf("%w: %w", ErrInvalidPlan, err)
 			}
 			mapped = append(mapped, filepath.ToSlash(rel))
 		} else {
@@ -215,9 +215,7 @@ func splitPath(p string) []string {
 	if rest == "" {
 		return out
 	}
-	for _, part := range splitNonEmpty(rest, filepath.Separator) {
-		out = append(out, part)
-	}
+	out = append(out, splitNonEmpty(rest, filepath.Separator)...)
 	return out
 }
 

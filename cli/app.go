@@ -1,3 +1,4 @@
+// Package cli implements the qbit-filematcher command-line interface.
 package cli
 
 import (
@@ -83,7 +84,7 @@ func (a *App) versionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Print version",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			_, err := fmt.Fprintf(a.Stdout, "qbit-filematcher %s\n", Version)
 			return err
 		},

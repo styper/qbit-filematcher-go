@@ -42,7 +42,7 @@ func TestMatchHelpGroupsFlags(t *testing.T) {
 	if cfgIdx < 0 || flagsIdx < 0 || filtersIdx < 0 || globalIdx < 0 {
 		t.Fatalf("missing section headers\n---\n%s", got)
 	}
-	if !(cfgIdx < flagsIdx && flagsIdx < filtersIdx && filtersIdx < globalIdx) {
+	if cfgIdx >= flagsIdx || flagsIdx >= filtersIdx || filtersIdx >= globalIdx {
 		t.Fatalf("expected Config Overrides → Flags → Filters → Global; indices %d %d %d %d",
 			cfgIdx, flagsIdx, filtersIdx, globalIdx)
 	}

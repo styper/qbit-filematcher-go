@@ -4,6 +4,16 @@
 <title>{{.Title}} · qBit Filematcher</title>
 <link rel="icon" href="{{iconURL}}" type="image/svg+xml" />
 <link rel="stylesheet" href="{{staticURL "app.css"}}" />
+<script>
+  (function () {
+    try {
+      document.documentElement.dataset.layout =
+        sessionStorage.getItem("qfm.layoutWide") === "1" ? "wide" : "narrow";
+    } catch (_) {
+      document.documentElement.dataset.layout = "narrow";
+    }
+  })();
+</script>
 <script defer src="{{staticURL "htmx.min.js"}}"></script>
 <script defer src="{{staticURL "alpine.min.js"}}"></script>
 {{end}}
@@ -14,11 +24,19 @@
   x-data="{
     running: null,
     error: '',
+    wide: document.documentElement.dataset.layout === 'wide',
     get label() {
       if (this.error) return 'qBittorrent status unknown';
       if (this.running === true) return 'qBittorrent running';
       if (this.running === false) return 'qBittorrent not running';
       return 'Checking qBittorrent…';
+    },
+    toggleWide() {
+      this.wide = !this.wide;
+      document.documentElement.dataset.layout = this.wide ? 'wide' : 'narrow';
+      try {
+        sessionStorage.setItem('qfm.layoutWide', this.wide ? '1' : '0');
+      } catch (_) {}
     },
     async refresh() {
       try {
@@ -38,7 +56,7 @@
   }"
   x-init="start()"
 >
-  <div class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-4">
+  <div class="layout-shell flex items-center justify-between gap-4 py-4">
     <div class="flex items-center gap-2">
       <a href="/" class="flex items-center gap-2 text-sm font-semibold tracking-[0.18em] uppercase text-cyan-400">
         <img src="{{iconURL}}" alt="" width="24" height="24" class="h-6 w-6 rounded-md" />
@@ -46,7 +64,7 @@
       </a>
       {{if .Version}}<span class="text-xs text-slate-500">{{.Version}}</span>{{end}}
     </div>
-    <div class="flex items-center gap-6">
+    <div class="flex items-center gap-4 sm:gap-6">
       <div class="flex items-center gap-2 text-xs" :title="error || label">
         <span
           class="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
@@ -58,6 +76,16 @@
           x-text="label"
         ></span>
       </div>
+      <button
+        type="button"
+        class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-400 hover:border-slate-500 hover:text-white"
+        @click="toggleWide()"
+        :title="wide ? 'Use fixed width' : 'Use full width'"
+        :aria-pressed="wide"
+        aria-label="Toggle full width layout"
+      >
+        ↔
+      </button>
       <nav class="flex gap-4 text-sm text-slate-300">
         <a class="hover:text-white" href="/">Home</a>
         <a class="hover:text-white" href="/match">Match</a>

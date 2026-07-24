@@ -1,3 +1,4 @@
+// Package config loads and saves application settings.
 package config
 
 import (
@@ -264,7 +265,7 @@ func checkReadableDir(path, label string) error {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("%s %q does not exist", label, path)
 		}
-		return fmt.Errorf("%s %q: %v", label, path, err)
+		return fmt.Errorf("%s %q: %w", label, path, err)
 	}
 	if !st.IsDir() {
 		return fmt.Errorf("%s %q is not a directory", label, path)

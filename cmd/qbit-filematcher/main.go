@@ -1,3 +1,4 @@
+// Package main is the qbit-filematcher entrypoint.
 package main
 
 import (

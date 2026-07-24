@@ -6,13 +6,14 @@
   </head>
   <body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
     {{template "nav" .}}
-    <main class="mx-auto max-w-5xl px-6 py-8">
+    <main class="layout-shell py-8">
       {{template "flash" .}}
       <section
         class="space-y-8"
         x-data="{
           scanning: {{json .Scanning}},
           elapsedSec: {{.ScanElapsedSec}},
+          scanPanelOpen: sessionStorage.getItem('qfm.matchScanPanel') === '1',
           formatElapsed(sec) {
             sec = Math.max(0, Math.floor(sec));
             const h = Math.floor(sec / 3600);
@@ -21,6 +22,18 @@
             if (h > 0) return h + 'h' + m + 'm' + s + 's';
             if (m > 0) return m + 'm' + s + 's';
             return s + 's';
+          },
+          toggleScanPanel() {
+            this.scanPanelOpen = !this.scanPanelOpen;
+            sessionStorage.setItem('qfm.matchScanPanel', this.scanPanelOpen ? '1' : '0');
+          },
+          clearMatchListState() {
+            sessionStorage.removeItem('qfm.matchSortKey');
+            sessionStorage.removeItem('qfm.matchSortAsc');
+            sessionStorage.removeItem('qfm.matchFilterText');
+            sessionStorage.removeItem('qfm.matchLocationFilter');
+            sessionStorage.removeItem('qfm.matchQueue');
+            sessionStorage.removeItem('qfm.queueFinished');
           }
         }"
         x-init="
@@ -48,8 +61,51 @@
           <p class="mt-1 text-sm text-slate-400">Load BT_backup, scan search paths, then review each torrent.</p>
         </div>
 
-        <div class="space-y-3 rounded border border-slate-800 bg-slate-900/40 p-4">
-          <div class="space-y-3 text-sm">
+        <div class="rounded border border-slate-800 bg-slate-900/40">
+          <div class="flex flex-wrap items-center justify-between gap-3 p-4">
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white"
+              @click="toggleScanPanel()"
+              :aria-expanded="scanPanelOpen"
+            >
+              <svg
+                class="h-3.5 w-3.5 shrink-0 text-slate-500 transition-transform"
+                :class="scanPanelOpen ? 'rotate-90' : ''"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M9 5.25l7.5 6.75L9 18.75V5.25z"/>
+              </svg>
+              <span>Scan setup</span>
+            </button>
+            <div class="flex flex-wrap items-center gap-3">
+              <form method="post" action="/match/scan" @submit="clearMatchListState()">
+                <button
+                  type="submit"
+                  class="inline-flex items-center gap-2 rounded bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-cyan-400 disabled:cursor-wait disabled:opacity-80"
+                  :disabled="scanning"
+                >
+                  <svg x-show="scanning" x-cloak class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                  </svg>
+                  <span x-text="scanning ? ('Scanning… ' + formatElapsed(elapsedSec)) : 'Scan'"></span>
+                </button>
+              </form>
+              <form method="post" action="/match/scan/cancel" x-show="scanning" x-cloak>
+                <button
+                  type="submit"
+                  class="rounded border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:border-slate-400 hover:bg-slate-900"
+                >
+                  Cancel
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <div x-show="scanPanelOpen" x-cloak class="space-y-3 border-t border-slate-800 p-4 text-sm">
             <div>
               <p class="text-slate-300">BT_backup</p>
               <p class="mt-1 font-mono text-xs text-slate-400 break-all">{{.Settings.BTBackupLocation}}</p>
@@ -79,41 +135,49 @@
               {{end}}
             </div>
             <p class="text-xs text-slate-500">Edit these on the <a href="/config" class="text-cyan-400 hover:underline">Config</a> page.</p>
+            <p x-show="scanning" x-cloak class="text-sm text-slate-400">Loading torrents and walking search paths. This can take a while on large disks.</p>
           </div>
-
-          <div class="flex flex-wrap items-center gap-3">
-            <form method="post" action="/match/scan">
-              <button
-                type="submit"
-                class="inline-flex items-center gap-2 rounded bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-cyan-400 disabled:cursor-wait disabled:opacity-80"
-                :disabled="scanning"
-              >
-                <svg x-show="scanning" x-cloak class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-                </svg>
-                <span x-text="scanning ? ('Scanning… ' + formatElapsed(elapsedSec)) : 'Scan'"></span>
-              </button>
-            </form>
-            <form method="post" action="/match/scan/cancel" x-show="scanning" x-cloak>
-              <button
-                type="submit"
-                class="rounded border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:border-slate-400 hover:bg-slate-900"
-              >
-                Cancel
-              </button>
-            </form>
-          </div>
-          <p x-show="scanning" x-cloak class="text-sm text-slate-400">Loading torrents and walking search paths. This can take a while on large disks.</p>
         </div>
 
         {{if .Torrents}}
         <div
-          class="overflow-x-auto rounded border border-slate-800"
+          class="space-y-3"
           x-data="{
-            rows: {{json .Torrents}},
-            sortKey: 'name',
-            sortAsc: true,
+            allRows: {{json .Torrents}},
+            sortKey: (() => {
+              const k = sessionStorage.getItem('qfm.matchSortKey');
+              return ['name', 'location', 'files', 'tags'].includes(k) ? k : 'name';
+            })(),
+            sortAsc: sessionStorage.getItem('qfm.matchSortAsc') !== '0',
+            filterText: sessionStorage.getItem('qfm.matchFilterText') || '',
+            locationFilter: (() => {
+              const k = sessionStorage.getItem('qfm.matchLocationFilter');
+              return ['all', 'none', 'incomplete', 'current', 'changed'].includes(k) ? k : 'all';
+            })(),
+            applySort() {
+              const key = this.sortKey;
+              const dir = this.sortAsc ? 1 : -1;
+              this.allRows = [...this.allRows].sort((a, b) => {
+                const av = a[key], bv = b[key];
+                let cmp = 0;
+                if (typeof av === 'number' && typeof bv === 'number') {
+                  cmp = av - bv;
+                } else {
+                  cmp = String(av).localeCompare(String(bv), undefined, {sensitivity: 'base'});
+                }
+                if (cmp !== 0) return cmp * dir;
+                return String(a.name).localeCompare(String(b.name), undefined, {sensitivity: 'base'})
+                  || String(a.hash).localeCompare(String(b.hash));
+              });
+            },
+            persistSort() {
+              sessionStorage.setItem('qfm.matchSortKey', this.sortKey);
+              sessionStorage.setItem('qfm.matchSortAsc', this.sortAsc ? '1' : '0');
+            },
+            persistFilters() {
+              sessionStorage.setItem('qfm.matchFilterText', this.filterText);
+              sessionStorage.setItem('qfm.matchLocationFilter', this.locationFilter);
+            },
             sortBy(key) {
               if (this.sortKey === key) {
                 this.sortAsc = !this.sortAsc;
@@ -121,56 +185,270 @@
                 this.sortKey = key;
                 this.sortAsc = true;
               }
-              const dir = this.sortAsc ? 1 : -1;
-              this.rows = [...this.rows].sort((a, b) => {
-                const av = a[key], bv = b[key];
-                if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
-                return String(av).localeCompare(String(bv), undefined, {sensitivity: 'base'}) * dir;
-              });
+              this.persistSort();
+              this.applySort();
+            },
+            setLocationFilter(id) {
+              this.locationFilter = id;
+              this.persistFilters();
             },
             indicator(key) {
               if (this.sortKey !== key) return '';
               return this.sortAsc ? ' ▲' : ' ▼';
+            },
+            locationClass(loc) {
+              if (loc === 'current') return 'bg-emerald-500';
+              if (loc === 'changed') return 'bg-amber-500';
+              if (loc === 'none') return 'bg-rose-500';
+              return 'bg-slate-500';
+            },
+            locationLabel(loc) {
+              if (loc === 'current') return 'Current';
+              if (loc === 'changed') return 'Changed';
+              if (loc === 'none') return 'None';
+              return 'Partial';
+            },
+            locationTitle(loc) {
+              if (loc === 'current') return 'All files matched; selected paths already match the fastresume (nothing to save)';
+              if (loc === 'changed') return 'All files matched; at least one selected path differs from the fastresume';
+              if (loc === 'none') return 'No on-disk candidates found for any file in this torrent';
+              return 'Some files have candidates; others are still unmatched';
+            },
+            rowVisible(row) {
+              if (this.locationFilter !== 'all' && row.location !== this.locationFilter) return false;
+              const q = this.filterText.trim().toLowerCase();
+              if (!q) return true;
+              if (String(row.name).toLowerCase().includes(q)) return true;
+              if (String(row.hash).toLowerCase().includes(q)) return true;
+              if (String(row.tags || '').toLowerCase().includes(q)) return true;
+              return false;
+            },
+            get visibleRows() {
+              return this.allRows.filter((row) => this.rowVisible(row));
+            },
+            get locationCounts() {
+              const c = { all: this.allRows.length, none: 0, incomplete: 0, current: 0, changed: 0 };
+              for (const row of this.allRows) {
+                if (c[row.location] !== undefined) c[row.location]++;
+              }
+              return c;
+            },
+            get filterActive() {
+              return this.locationFilter !== 'all' || this.filterText.trim() !== '';
+            },
+            selected: {},
+            queueHint: '',
+            get selectedCount() {
+              return Object.keys(this.selected).filter((h) => this.selected[h]).length;
+            },
+            get allVisibleSelected() {
+              const rows = this.visibleRows;
+              return rows.length > 0 && rows.every((r) => this.selected[r.hash]);
+            },
+            toggleRow(hash) {
+              if (this.selected[hash]) {
+                const next = { ...this.selected };
+                delete next[hash];
+                this.selected = next;
+              } else {
+                this.selected = { ...this.selected, [hash]: true };
+              }
+            },
+            toggleSelectAllVisible() {
+              if (this.allVisibleSelected) {
+                const next = { ...this.selected };
+                for (const row of this.visibleRows) {
+                  delete next[row.hash];
+                }
+                this.selected = next;
+              } else {
+                const next = { ...this.selected };
+                for (const row of this.visibleRows) {
+                  next[row.hash] = true;
+                }
+                this.selected = next;
+              }
+            },
+            startQueue() {
+              this.queueHint = '';
+              const hashes = this.allRows
+                .filter((r) => this.selected[r.hash] && r.location !== 'current')
+                .map((r) => r.hash);
+              if (hashes.length === 0) {
+                this.queueHint = this.selectedCount > 0
+                  ? 'Nothing to queue — selected torrents are already Current.'
+                  : 'Select at least one torrent.';
+                return;
+              }
+              try {
+                sessionStorage.setItem('qfm.matchQueue', JSON.stringify({ hashes, index: 0 }));
+                sessionStorage.setItem('qfm.queueDir', 'forward');
+                sessionStorage.removeItem('qfm.queueFinished');
+              } catch (_) {}
+              window.location.href = '/match/' + hashes[0];
+            },
+            init() {
+              this.applySort();
+              try {
+                if (sessionStorage.getItem('qfm.queueFinished') === '1') {
+                  sessionStorage.removeItem('qfm.queueFinished');
+                  this.queueHint = 'Queue finished.';
+                }
+              } catch (_) {}
             }
           }"
         >
-          <table class="min-w-full text-left text-sm">
-            <thead class="bg-slate-900 text-slate-400">
-              <tr>
-                <th class="px-3 py-2 font-medium">
-                  <button type="button" class="hover:text-slate-200" @click="sortBy('name')">Name<span x-text="indicator('name')"></span></button>
-                </th>
-                <th class="px-3 py-2 font-medium">
-                  <button type="button" class="hover:text-slate-200" @click="sortBy('status')">Status<span x-text="indicator('status')"></span></button>
-                </th>
-                <th class="px-3 py-2 font-medium">
-                  <button type="button" class="hover:text-slate-200" @click="sortBy('files')">Files<span x-text="indicator('files')"></span></button>
-                </th>
-                <th class="px-3 py-2 font-medium">
-                  <button type="button" class="hover:text-slate-200" @click="sortBy('tags')">Tags<span x-text="indicator('tags')"></span></button>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <template x-for="row in rows" :key="row.hash">
-                <tr class="border-t border-slate-800 hover:bg-slate-900/60">
-                  <td class="px-3 py-2">
-                    <a class="text-cyan-300 hover:underline" :href="'/match/' + row.hash" x-text="row.name"></a>
-                    <div class="font-mono text-[11px] text-slate-500" x-text="row.hash"></div>
-                  </td>
-                  <td class="px-3 py-2" x-text="row.status"></td>
-                  <td class="px-3 py-2" x-text="row.files"></td>
-                  <td class="px-3 py-2 text-slate-400" x-text="row.tags"></td>
-                </tr>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <input
+              type="search"
+              class="w-full rounded border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 sm:max-w-xs"
+              placeholder="Filter by name, hash, or tag…"
+              autocomplete="off"
+              x-model="filterText"
+              @input="persistFilters()"
+            />
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-xs uppercase tracking-wide text-slate-500">Match Status</span>
+              <template x-for="opt in [
+                { id: 'all', label: 'All' },
+                { id: 'changed', label: 'Changed' },
+                { id: 'incomplete', label: 'Partial' },
+                { id: 'current', label: 'Current' },
+                { id: 'none', label: 'None' }
+              ]" :key="opt.id">
+                <button
+                  type="button"
+                  class="rounded border px-3 py-1 text-xs"
+                  :class="locationFilter === opt.id
+                    ? 'border-cyan-500 text-cyan-300'
+                    : 'border-slate-700 text-slate-400 hover:border-slate-500'"
+                  @click="setLocationFilter(opt.id)"
+                >
+                  <span x-text="opt.label"></span>
+                  <span class="text-slate-500" x-text="'(' + locationCounts[opt.id] + ')'"></span>
+                </button>
               </template>
-            </tbody>
-          </table>
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <p class="text-xs text-slate-500" x-show="filterActive" x-cloak>
+              Showing <span x-text="visibleRows.length"></span> of <span x-text="allRows.length"></span>
+            </p>
+            <div class="flex flex-wrap items-center gap-2" x-show="selectedCount > 0" x-cloak>
+              <span class="text-xs text-slate-400">
+                <span x-text="selectedCount"></span> selected
+              </span>
+              <button
+                type="button"
+                class="rounded bg-cyan-500 px-3 py-1.5 text-xs font-medium text-slate-950 hover:bg-cyan-400"
+                @click="startQueue()"
+              >
+                Start queue
+              </button>
+              <button
+                type="button"
+                class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-400 hover:border-slate-500 hover:text-white"
+                @click="selected = {}"
+              >
+                Clear selection
+              </button>
+            </div>
+          </div>
+          <p class="text-xs text-cyan-300/90" x-show="queueHint" x-cloak x-text="queueHint"></p>
+
+          <div class="overflow-x-auto rounded border border-slate-800">
+            <table class="min-w-full text-left text-sm">
+              <thead class="bg-slate-900 text-slate-400">
+                <tr>
+                  <th class="w-10 px-3 py-2">
+                    <input
+                      type="checkbox"
+                      class="rounded border-slate-600"
+                      :checked="allVisibleSelected"
+                      x-effect="$el.indeterminate = selectedCount > 0 && !allVisibleSelected && visibleRows.some((r) => selected[r.hash])"
+                      @change="toggleSelectAllVisible()"
+                      :disabled="visibleRows.length === 0"
+                      title="Select all visible"
+                      aria-label="Select all visible torrents"
+                    />
+                  </th>
+                  <th class="px-3 py-2 font-medium">
+                    <button type="button" class="whitespace-nowrap hover:text-slate-200" @click="sortBy('name')">Name<span x-text="indicator('name')"></span></button>
+                  </th>
+                  <th class="whitespace-nowrap px-3 py-2 font-medium">
+                    <button type="button" class="whitespace-nowrap hover:text-slate-200" @click="sortBy('location')">Match Status<span x-text="indicator('location')"></span></button>
+                  </th>
+                  <th class="whitespace-nowrap px-3 py-2 text-center font-medium">
+                    <button type="button" class="whitespace-nowrap hover:text-slate-200" @click="sortBy('files')">Files<span x-text="indicator('files')"></span></button>
+                  </th>
+                  <th class="px-3 py-2 font-medium">
+                    <button type="button" class="whitespace-nowrap hover:text-slate-200" @click="sortBy('tags')">Tags<span x-text="indicator('tags')"></span></button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="row in visibleRows" :key="row.hash">
+                  <tr class="border-t border-slate-800 hover:bg-slate-900/60">
+                    <td class="px-3 py-2">
+                      <input
+                        type="checkbox"
+                        class="rounded border-slate-600"
+                        :checked="!!selected[row.hash]"
+                        @change="toggleRow(row.hash)"
+                        :aria-label="'Select ' + row.name"
+                      />
+                    </td>
+                    <td class="px-3 py-2">
+                      <a class="text-cyan-300 hover:underline" :href="'/match/' + row.hash" x-text="row.name"></a>
+                      <div class="font-mono text-[11px] text-slate-500" x-text="row.hash"></div>
+                    </td>
+                    <td class="px-3 py-2">
+                      <span
+                        class="inline-flex items-center gap-2"
+                        :title="locationTitle(row.location)"
+                        :aria-label="locationTitle(row.location)"
+                      >
+                        <span
+                          class="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                          :class="locationClass(row.location)"
+                          aria-hidden="true"
+                        ></span>
+                        <span x-text="locationLabel(row.location)"></span>
+                      </span>
+                    </td>
+                    <td class="px-3 py-2 text-center" x-text="row.files"></td>
+                    <td class="px-3 py-2 text-slate-400" x-text="row.tags"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            <p x-show="visibleRows.length === 0" x-cloak class="border-t border-slate-800 px-3 py-4 text-sm text-slate-500">No torrents match the current filters.</p>
+          </div>
         </div>
         {{else}}
         <p class="text-sm text-slate-500" x-show="!scanning">No scan loaded yet.</p>
         <p class="text-sm text-slate-500" x-show="scanning" x-cloak>Scan in progress…</p>
         {{end}}
       </section>
+
+      <div class="fixed bottom-6 right-6 z-20 flex flex-col gap-2">
+        <button
+          type="button"
+          class="rounded border border-slate-700 bg-slate-950/90 px-3 py-2 text-xs text-slate-300 shadow-lg backdrop-blur hover:border-slate-500 hover:text-white"
+          onclick="window.scrollTo({ top: 0, behavior: 'smooth' })"
+          title="Go to top"
+        >
+          ↑ Top
+        </button>
+        <button
+          type="button"
+          class="rounded border border-slate-700 bg-slate-950/90 px-3 py-2 text-xs text-slate-300 shadow-lg backdrop-blur hover:border-slate-500 hover:text-white"
+          onclick="window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })"
+          title="Go to bottom"
+        >
+          ↓ Bottom
+        </button>
+      </div>
     </main>
   </body>
 </html>

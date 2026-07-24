@@ -94,7 +94,14 @@
 {{end}}
 
 {{define "match_plan_panel"}}
-<div id="match-plan" class="space-y-4" data-conflicts="{{json .ConflictIndexes}}">
+<div
+  id="match-plan"
+  class="space-y-4"
+  data-conflicts="{{json .ConflictIndexes}}"
+  data-can-save="{{json .CanSave}}"
+  data-already-current="{{json .AlreadyCurrent}}"
+  data-location="{{.Location}}"
+>
   {{template "match_plan_body" .}}
 </div>
 {{end}}
@@ -102,7 +109,15 @@
 {{define "match_select_response.html"}}
 {{template "match_file_card" .FileCard}}
 {{with .Torrent}}
-<div id="match-plan" hx-swap-oob="true" class="space-y-4" data-conflicts="{{json .ConflictIndexes}}">
+<div
+  id="match-plan"
+  hx-swap-oob="true"
+  class="space-y-4"
+  data-conflicts="{{json .ConflictIndexes}}"
+  data-can-save="{{json .CanSave}}"
+  data-already-current="{{json .AlreadyCurrent}}"
+  data-location="{{.Location}}"
+>
   {{template "match_plan_body" .}}
   {{if and (not .Plan) (not .PlanErr) (not .PlanHint)}}
   <p class="text-sm text-slate-500">No plan available yet.</p>

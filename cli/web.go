@@ -24,7 +24,7 @@ func (a *App) webCmd() *cobra.Command {
 		Aliases: []string{"serve"},
 		Short:   "Start the web UI server",
 		Args:    cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := web.DefaultConfig()
 			cfg.ConfigPath = config.Path(a.configPath)
 

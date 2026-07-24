@@ -19,12 +19,12 @@ type Torrent struct {
 
 // Status returns the overall match completeness for this torrent.
 func (t *Torrent) Status() MatchStatus {
-	real := t.Info.RealFiles()
-	if len(real) == 0 {
+	realFiles := t.Info.RealFiles()
+	if len(realFiles) == 0 {
 		return MatchNone
 	}
 	matched := 0
-	for _, f := range real {
+	for _, f := range realFiles {
 		if m := t.Matches[f.Index]; m != nil && m.HasMatch() {
 			matched++
 		}
@@ -32,7 +32,7 @@ func (t *Torrent) Status() MatchStatus {
 	switch {
 	case matched == 0:
 		return MatchNone
-	case matched == len(real):
+	case matched == len(realFiles):
 		return MatchAll
 	default:
 		return MatchPartial
@@ -157,12 +157,11 @@ func (l *Library) List() []*Torrent {
 
 func matchFilter(t *Torrent, opts FilterOptions) bool {
 	if len(opts.Hashes) > 0 {
-		ok := false
 		want := make(map[string]struct{}, len(opts.Hashes))
 		for _, h := range opts.Hashes {
 			want[strings.ToLower(h)] = struct{}{}
 		}
-		if _, ok = want[strings.ToLower(t.Info.HashV1)]; !ok {
+		if _, ok := want[strings.ToLower(t.Info.HashV1)]; !ok {
 			return false
 		}
 	}
@@ -179,14 +178,14 @@ func matchFilter(t *Torrent, opts FilterOptions) bool {
 				}
 			}
 		} else {
-			any := false
+			matchedAny := false
 			for _, want := range opts.Tags {
 				if _, ok := tagSet[want]; ok {
-					any = true
+					matchedAny = true
 					break
 				}
 			}
-			if !any {
+			if !matchedAny {
 				return false
 			}
 		}

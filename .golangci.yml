@@ -1,0 +1,67 @@
+# https://golangci-lint.run/docs/configuration/file/
+version: "2"
+
+linters:
+  # Includes govet, staticcheck, errcheck, ineffassign, unused, etc.
+  default: standard
+  enable:
+    - misspell
+    - unconvert
+    - bodyclose
+    - errorlint
+    - nilerr
+    - durationcheck
+    - gocheckcompilerdirectives
+    - usestdlibvars
+    - predeclared
+    - copyloopvar
+    - gocritic
+    - revive
+    - gocyclo
+    - wastedassign
+    - makezero
+    - nolintlint
+    - gosec
+    - thelper
+    - tparallel
+    - noctx
+    - errname
+  settings:
+    errcheck:
+      # CLI/WEB logging to stdout/stderr; defer Close is rarely actionable here.
+      exclude-functions:
+        - fmt.Print
+        - fmt.Printf
+        - fmt.Println
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - io.Closer.Close
+        - (*os.File).Close
+        - os.RemoveAll
+    gosec:
+      # Local tool: user-supplied paths and ordinary file modes are expected.
+      excludes:
+        - G304 # file path from config/CLI used as taint input
+        - G301 # directory permissions
+        - G302 # file/chmod permissions
+        - G306 # WriteFile permissions
+        - G703 # path traversal via taint (paths are user-chosen)
+        - G710 # open redirect via taint
+  exclusions:
+    paths:
+      - third_party$
+    rules:
+      # Dev tooling: intentional HTTP fetches and subprocesses.
+      - path: (^|/)scripts/
+        linters:
+          - gosec
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofumpt   # stricter gofmt
+    - goimports # add/remove/group imports

@@ -46,11 +46,11 @@ func (t *Torrent) Save(plan *SavePlan, opts SaveOptions) (written bool, err erro
 
 	onDiskRaw, err := os.ReadFile(t.Paths.FastresumeFile)
 	if err != nil {
-		return false, fmt.Errorf("%w: cannot read %s: %v", ErrStale, filepath.Base(t.Paths.FastresumeFile), err)
+		return false, fmt.Errorf("%w: cannot read %s: %w", ErrStale, filepath.Base(t.Paths.FastresumeFile), err)
 	}
 	onDisk, err := decodeBencodeDict(onDiskRaw)
 	if err != nil {
-		return false, fmt.Errorf("%w: cannot decode %s: %v", ErrStale, filepath.Base(t.Paths.FastresumeFile), err)
+		return false, fmt.Errorf("%w: cannot decode %s: %w", ErrStale, filepath.Base(t.Paths.FastresumeFile), err)
 	}
 	if !deepEqualBencode(onDisk, t.fastresumeDict) {
 		return false, fmt.Errorf("%w: %s changed since it was loaded", ErrStale, filepath.Base(t.Paths.FastresumeFile))
@@ -103,6 +103,17 @@ func (t *Torrent) Save(plan *SavePlan, opts SaveOptions) (written bool, err erro
 
 	t.fastresumeDict = newData
 	t.Info.SavePath = plan.SavePath
+	for i, mapped := range plan.MappedFiles {
+		if i >= len(t.Info.Files) {
+			break
+		}
+		if t.Info.Files[i].IsPad {
+			continue
+		}
+		if mapped != "" {
+			t.Info.Files[i].Path = ParsePath(mapped)
+		}
+	}
 	if v, ok := asString(newData["qBt-downloadPath"]); ok {
 		t.Info.DownloadPath = ParsePath(v)
 	}

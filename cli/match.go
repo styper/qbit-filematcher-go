@@ -41,7 +41,7 @@ After merge, --bt-backup and at least one --search path are required.`,
   qbit-filematcher match -s /data/media -s /mnt/nas/media
   qbit-filematcher match -s "/data/My Media" -s /mnt/nas/media`,
 		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 			settings, err := config.Load(a.configPath)
 			if err != nil {
@@ -152,10 +152,10 @@ After merge, --bt-backup and at least one --search path are required.`,
 
 func (a *App) processTorrent(tor *filematcher.Torrent, auto, allowIncomplete, dryRun bool) error {
 	fmt.Fprintf(a.Stdout, "\n== %s (%s) ==\n", tor.Info.Name, tor.Info.HashV1)
-	real := tor.Info.RealFiles()
-	for i, f := range real {
+	realFiles := tor.Info.RealFiles()
+	for i, f := range realFiles {
 		m := tor.Matches[f.Index]
-		fmt.Fprintf(a.Stdout, "[%d/%d] %s (%d bytes)\n", i+1, len(real), f.Path, f.Size)
+		fmt.Fprintf(a.Stdout, "[%d/%d] %s (%d bytes)\n", i+1, len(realFiles), f.Path, f.Size)
 		if m == nil || !m.HasMatch() {
 			fmt.Fprintln(a.Stdout, "  (no matches)")
 			continue

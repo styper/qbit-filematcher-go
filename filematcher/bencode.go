@@ -72,8 +72,6 @@ func parseBencode(data []byte) (any, int, error) {
 	case 'd':
 		dict := make(map[string]any)
 		pos := 1
-		var lastKey string
-		first := true
 		for {
 			if pos >= len(data) {
 				return nil, 0, fmt.Errorf("unterminated dict")
@@ -94,11 +92,6 @@ func parseBencode(data []byte) (any, int, error) {
 					return nil, 0, fmt.Errorf("dict key must be a string")
 				}
 			}
-			if !first && key < lastKey {
-				// Tolerant on decode; BEP 3 requires sorted keys on encode.
-			}
-			first = false
-			lastKey = key
 			val, n, err := parseBencode(data[pos:])
 			if err != nil {
 				return nil, 0, err

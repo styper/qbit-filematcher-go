@@ -6,3 +6,16 @@
 [x-cloak] {
   display: none !important;
 }
+
+/* Narrow (default) vs full-width layout; toggled via html[data-layout]. */
+.layout-shell {
+  max-width: 64rem; /* Tailwind max-w-5xl */
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem; /* px-6 */
+  padding-right: 1.5rem;
+}
+
+html[data-layout="wide"] .layout-shell {
+  max-width: none;
+}

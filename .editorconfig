@@ -8,7 +8,7 @@ end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
 
-# gofmt uses tabs
+# Go formatters (gofumpt/goimports) use tabs
 [*.go]
 indent_style = tab
 indent_size = 4

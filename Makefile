@@ -1,25 +1,22 @@
 # qbit-filematcher — build, assets, and cross-compile targets
 #
 # Run `make help` to list targets.
+# Make is optional: assets/licenses can be driven with `go run` / `go generate`.
 # Most build targets depend on `assets` so HTMX/Alpine/CSS are embedded.
 
 # ---------------------------------------------------------------------------
-# Versions / tools
+# Tools
 # ---------------------------------------------------------------------------
-
-# Frontend vendor versions (downloaded; never committed)
-HTMX_VERSION     ?= 2.0.4
-ALPINE_VERSION   ?= 3.14.8
-TAILWIND_VERSION ?= v4.1.11
+#
+# Frontend vendor versions: scripts/versions.json (single source of truth).
 
 # Optional app version stamped into the binary via -ldflags
 VERSION ?= dev
 
 STATIC_DIR := web/static
-STYLES_DIR := web/styles
-TOOLS_DIR  := .tools
 BIN_DIR    := bin
 DIST_DIR   := dist
+TOOLS_DIR  := .tools
 CMD_PKG    := ./cmd/qbit-filematcher
 
 GO       ?= go
@@ -27,35 +24,11 @@ GOFLAGS  ?=
 MODULE   := $(shell $(GO) list -m)
 LDFLAGS  ?= -s -w -X $(MODULE)/cli.Version=$(VERSION)
 
-# Native binary name (no extension on Unix; .exe added for Windows cross builds)
 BIN_NATIVE := $(BIN_DIR)/qbit-filematcher
 
-# Detect host OS/arch for the Tailwind standalone CLI download
-UNAME_S := $(shell uname -s | tr '[:upper:]' '[:lower:]')
-UNAME_M := $(shell uname -m)
-
-ifeq ($(UNAME_M),x86_64)
-  TW_ARCH := x64
-else ifeq ($(UNAME_M),amd64)
-  TW_ARCH := x64
-else ifeq ($(UNAME_M),arm64)
-  TW_ARCH := arm64
-else ifeq ($(UNAME_M),aarch64)
-  TW_ARCH := arm64
-else
-  TW_ARCH := $(UNAME_M)
-endif
-
-ifeq ($(UNAME_S),darwin)
-  TW_OS := macos
-else ifeq ($(UNAME_S),linux)
-  TW_OS := linux
-else
-  TW_OS := $(UNAME_S)
-endif
-
-TAILWIND_BIN := $(TOOLS_DIR)/tailwindcss-$(TW_OS)-$(TW_ARCH)
-TAILWIND_URL := https://github.com/tailwindlabs/tailwindcss/releases/download/$(TAILWIND_VERSION)/tailwindcss-$(TW_OS)-$(TW_ARCH)
+FETCHASSETS := $(GO) run ./scripts/fetchassets
+GENLICENSES := $(GO) run ./scripts/genlicenses
+GOLANGCI_LINT ?= golangci-lint
 
 .PHONY: help all assets force-assets \
 	build build-race \
@@ -64,7 +37,7 @@ TAILWIND_URL := https://github.com/tailwindlabs/tailwindcss/releases/download/$(
 	build-darwin-amd64 build-darwin-arm64 \
 	build-all \
 	icon-pngs \
-	check check-race test test-race fmt fmt-check vet gosec govulncheck \
+	check check-race test test-race fmt lint govulncheck \
 	licenses licenses-check tidy \
 	clean clean-bin clean-dist clean-assets clean-tools
 
@@ -84,37 +57,13 @@ all: build
 # Frontend assets (embedded into the binary; not committed)
 # ---------------------------------------------------------------------------
 
-## assets: Download HTMX + Alpine, build Tailwind CSS, and write assets.json hashes
-assets: $(STATIC_DIR)/assets.json
+## assets: Download HTMX + Alpine, build Tailwind CSS, write assets.json (go run)
+assets:
+	$(FETCHASSETS)
 
 ## force-assets: Re-download/rebuild frontend assets even if files exist
 force-assets:
-	rm -f $(STATIC_DIR)/htmx.min.js $(STATIC_DIR)/alpine.min.js $(STATIC_DIR)/app.css $(STATIC_DIR)/assets.json
-	$(MAKE) assets
-
-$(STATIC_DIR):
-	mkdir -p $(STATIC_DIR)
-
-$(TOOLS_DIR):
-	mkdir -p $(TOOLS_DIR)
-
-$(STATIC_DIR)/htmx.min.js: | $(STATIC_DIR)
-	curl -fsSL -A "qbit-filematcher-go" -o $@ \
-		"https://cdn.jsdelivr.net/npm/htmx.org@$(HTMX_VERSION)/dist/htmx.min.js"
-
-$(STATIC_DIR)/alpine.min.js: | $(STATIC_DIR)
-	curl -fsSL -A "qbit-filematcher-go" -o $@ \
-		"https://cdn.jsdelivr.net/npm/alpinejs@$(ALPINE_VERSION)/dist/cdn.min.js"
-
-$(TAILWIND_BIN): | $(TOOLS_DIR)
-	curl -fsSL -A "qbit-filematcher-go" -L -o $@ "$(TAILWIND_URL)"
-	chmod +x $@
-
-$(STATIC_DIR)/app.css: $(STYLES_DIR)/input.css $(TAILWIND_BIN) $(wildcard web/templates/*.html) | $(STATIC_DIR)
-	$(TAILWIND_BIN) -i $(STYLES_DIR)/input.css -o $@ --minify
-
-$(STATIC_DIR)/assets.json: $(STATIC_DIR)/htmx.min.js $(STATIC_DIR)/alpine.min.js $(STATIC_DIR)/app.css
-	$(GO) run ./scripts/hashassets -dir $(STATIC_DIR) -o $@
+	$(FETCHASSETS) -force
 
 # ---------------------------------------------------------------------------
 # Native build
@@ -132,7 +81,6 @@ build-race: assets
 
 # ---------------------------------------------------------------------------
 # Cross-compile (requires assets; CGO is disabled for portable binaries)
-# Artifacts land in dist/ for release packaging.
 # ---------------------------------------------------------------------------
 
 ## build-linux-amd64: Cross-compile Linux amd64 → dist/qbit-filematcher-linux-amd64
@@ -199,11 +147,11 @@ icon-pngs:
 # Quality / module maintenance
 # ---------------------------------------------------------------------------
 
-## check: Run all quality controls (fmt-check → vet → gosec → govulncheck → licenses-check → test)
-check: fmt-check vet gosec govulncheck licenses-check test
+## check: Run all quality controls (lint → govulncheck → licenses-check → test)
+check: lint govulncheck licenses-check test
 
 ## check-race: Same as check, with the race detector enabled for tests
-check-race: fmt-check vet gosec govulncheck licenses-check test-race
+check-race: lint govulncheck licenses-check test-race
 
 ## test: Run the full Go test suite
 test:
@@ -213,29 +161,25 @@ test:
 test-race:
 	$(GO) test $(GOFLAGS) -race ./...
 
-## fmt: Format all Go sources with go fmt
+## fmt: Format Go sources (gofumpt + goimports via golangci-lint)
 fmt:
-	$(GO) fmt ./...
-
-## fmt-check: Fail if any Go file needs gofmt (CI-safe)
-fmt-check:
-	@unformatted=$$(gofmt -l .); \
-	if [ -n "$$unformatted" ]; then \
-		echo "gofmt needed on:"; \
-		echo "$$unformatted"; \
-		echo "Run: make fmt"; \
+	@if ! command -v $(GOLANGCI_LINT) >/dev/null 2>&1; then \
+		echo "error: $(GOLANGCI_LINT) not found" >&2; \
+		echo "Install it, then re-run:" >&2; \
+		echo "  go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest" >&2; \
 		exit 1; \
 	fi
+	$(GOLANGCI_LINT) fmt ./...
 
-## vet: Run go vet on the module
-vet:
-	$(GO) vet ./...
-
-## gosec: Static security analysis (go run; not a module dependency)
-gosec:
-	$(GO) run github.com/securego/gosec/v2/cmd/gosec@latest \
-		-exclude=G304,G301,G302,G306,G703,G710 \
-		./...
+## lint: Run golangci-lint (format check + linters; requires golangci-lint on PATH)
+lint:
+	@if ! command -v $(GOLANGCI_LINT) >/dev/null 2>&1; then \
+		echo "error: $(GOLANGCI_LINT) not found" >&2; \
+		echo "Install it, then re-run:" >&2; \
+		echo "  go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest" >&2; \
+		exit 1; \
+	fi
+	$(GOLANGCI_LINT) run ./...
 
 ## govulncheck: Scan dependencies for known vulns (go run; not a module dependency)
 govulncheck:
@@ -243,21 +187,11 @@ govulncheck:
 
 ## licenses: Regenerate third_party/ (Go deps + HTMX/Alpine license texts)
 licenses:
-	HTMX_VERSION=$(HTMX_VERSION) ALPINE_VERSION=$(ALPINE_VERSION) \
-		bash scripts/gen-licenses.sh
+	$(GENLICENSES)
 
-## licenses-check: Fail if third_party/ is out of date vs make licenses
+## licenses-check: Fail if third_party/ is out of date vs genlicenses
 licenses-check:
-	@tmp=$$(mktemp -d); \
-	trap 'rm -rf "$$tmp"' EXIT; \
-	HTMX_VERSION=$(HTMX_VERSION) ALPINE_VERSION=$(ALPINE_VERSION) \
-		THIRD_PARTY_DIR="$$tmp/third_party" bash scripts/gen-licenses.sh; \
-	if ! diff -ru third_party "$$tmp/third_party"; then \
-		echo; \
-		echo "third_party/ is out of date. Run: make licenses && commit the result."; \
-		exit 1; \
-	fi; \
-	echo "third_party/ is up to date"
+	$(GENLICENSES) -check
 
 ## tidy: Sync go.mod / go.sum with go mod tidy
 tidy:

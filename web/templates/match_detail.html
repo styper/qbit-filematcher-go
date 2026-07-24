@@ -6,15 +6,25 @@
   </head>
   <body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
     {{template "nav" .}}
-    <main class="mx-auto max-w-5xl px-6 py-8">
+    <main class="layout-shell py-8">
       {{template "flash" .}}
       {{with .Torrent}}
       <section
         class="space-y-6"
         x-data="{
           filter: 'all',
+          hash: {{json .Hash}},
+          location: {{json .Location}},
+          canSave: {{json .CanSave}},
+          alreadyCurrent: {{json .AlreadyCurrent}},
+          hasFlash: {{if $.Flash}}true{{else}}false{{end}},
+          hasError: {{if $.Error}}true{{else}}false{{end}},
+          requiresIncomplete: {{json (eq .Status "partial_match")}},
+          allMatchedSingle: {{json (and (eq .Status "all_matches") .AllSingleMatch)}},
+          allowIncomplete: false,
           conflicts: {},
           counts: { all: 0, none: 0, matched: 0, multiple: 0, errors: 0 },
+          queue: null,
           setConflicts(arr) {
             const next = {};
             (arr || []).forEach((i) => { next[i] = true; });
@@ -51,7 +61,126 @@
             if (this.filter === 'all') return this.counts.all === 0;
             return this.counts[this.filter] === 0;
           },
-          syncConflicts() {
+          get incompleteEnabled() {
+            return this.requiresIncomplete;
+          },
+          get saveEnabled() {
+            return this.canSave && !this.alreadyCurrent && (!this.requiresIncomplete || this.allowIncomplete);
+          },
+          get saveButtonClass() {
+            if (!this.saveEnabled) {
+              return 'cursor-not-allowed bg-slate-800 text-slate-500';
+            }
+            if (this.allMatchedSingle) {
+              return 'bg-emerald-500 text-slate-950 hover:bg-emerald-400';
+            }
+            return 'bg-cyan-500 text-slate-950 hover:bg-cyan-400';
+          },
+          get saveTitle() {
+            if (!this.canSave) return 'No matches to save';
+            if (this.alreadyCurrent) return 'Already current — selected paths match fastresume';
+            if (this.requiresIncomplete && !this.allowIncomplete) return 'Enable Allow incomplete to save a partial match';
+            return '';
+          },
+          get inQueue() {
+            return this.queue !== null;
+          },
+          get queuePos() {
+            return this.queue ? this.queue.index + 1 : 0;
+          },
+          get queueTotal() {
+            return this.queue ? this.queue.hashes.length : 0;
+          },
+          get canQueueBack() {
+            return this.queue && this.queue.index > 0;
+          },
+          locationClass(loc) {
+            if (loc === 'current') return 'bg-emerald-500';
+            if (loc === 'changed') return 'bg-amber-500';
+            if (loc === 'none') return 'bg-rose-500';
+            return 'bg-slate-500';
+          },
+          locationLabel(loc) {
+            if (loc === 'current') return 'Current';
+            if (loc === 'changed') return 'Changed';
+            if (loc === 'none') return 'None';
+            return 'Partial';
+          },
+          locationTitle(loc) {
+            if (loc === 'current') return 'All files matched; selected paths already match the fastresume (nothing to save)';
+            if (loc === 'changed') return 'All files matched; at least one selected path differs from the fastresume';
+            if (loc === 'none') return 'No on-disk candidates found for any file in this torrent';
+            return 'Some files have candidates; others are still unmatched';
+          },
+          loadQueue() {
+            try {
+              const raw = sessionStorage.getItem('qfm.matchQueue');
+              if (!raw) return null;
+              const q = JSON.parse(raw);
+              if (!q || !Array.isArray(q.hashes) || q.hashes.length === 0) return null;
+              const at = q.hashes.indexOf(this.hash);
+              if (at < 0) return null;
+              return { hashes: q.hashes, index: at };
+            } catch (_) {
+              return null;
+            }
+          },
+          persistQueue() {
+            if (!this.queue) return;
+            try {
+              sessionStorage.setItem('qfm.matchQueue', JSON.stringify(this.queue));
+            } catch (_) {}
+          },
+          clearQueueStorage() {
+            try {
+              sessionStorage.removeItem('qfm.matchQueue');
+              sessionStorage.removeItem('qfm.queueDir');
+            } catch (_) {}
+          },
+          queueDir() {
+            try {
+              return sessionStorage.getItem('qfm.queueDir') || 'forward';
+            } catch (_) {
+              return 'forward';
+            }
+          },
+          setQueueDir(dir) {
+            try {
+              sessionStorage.setItem('qfm.queueDir', dir);
+            } catch (_) {}
+          },
+          goToQueueIndex(i, dir) {
+            if (!this.queue || i < 0 || i >= this.queue.hashes.length) {
+              this.finishQueue();
+              return;
+            }
+            this.setQueueDir(dir || 'forward');
+            this.queue.index = i;
+            this.persistQueue();
+            const next = this.queue.hashes[i];
+            if (next === this.hash) return;
+            window.location.href = '/match/' + next;
+          },
+          finishQueue() {
+            this.clearQueueStorage();
+            try {
+              sessionStorage.setItem('qfm.queueFinished', '1');
+            } catch (_) {}
+            window.location.href = '/match';
+          },
+          queueSkip() {
+            if (!this.queue) return;
+            this.goToQueueIndex(this.queue.index + 1, 'forward');
+          },
+          queueBack() {
+            if (!this.canQueueBack) return;
+            this.goToQueueIndex(this.queue.index - 1, 'back');
+          },
+          queueAbandon() {
+            this.clearQueueStorage();
+            window.location.href = '/match';
+          },
+          syncFromPlan() {
             const el = document.getElementById('match-plan');
             if (!el) return;
             try {
@@ -59,20 +188,86 @@
             } catch (_) {
               this.setConflicts([]);
             }
+            const loc = el.getAttribute('data-location');
+            if (loc) this.location = loc;
+            this.canSave = el.getAttribute('data-can-save') === 'true';
+            this.alreadyCurrent = el.getAttribute('data-already-current') === 'true';
           },
           init() {
-            this.syncConflicts();
-            const sync = () => this.syncConflicts();
+            this.syncFromPlan();
+            const sync = () => this.syncFromPlan();
             document.body.addEventListener('htmx:afterSwap', sync);
             document.body.addEventListener('htmx:oobAfterSwap', sync);
+
+            this.queue = this.loadQueue();
+            if (!this.queue) return;
+            this.persistQueue();
+            // Stay on save error. Advance after successful save (flash), or
+            // auto-skip Current when moving forward (not when using Back).
+            if (this.hasError) return;
+            if (this.hasFlash || (this.alreadyCurrent && this.queueDir() !== 'back')) {
+              this.goToQueueIndex(this.queue.index + 1, 'forward');
+            }
           }
         }"
       >
+        <div
+          x-show="inQueue"
+          x-cloak
+          class="flex flex-wrap items-center justify-between gap-3 rounded border border-cyan-900/50 bg-cyan-950/30 px-4 py-3"
+        >
+          <p class="text-sm text-cyan-100">
+            Queue
+            <span class="font-medium" x-text="queuePos"></span>
+            of
+            <span class="font-medium" x-text="queueTotal"></span>
+          </p>
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              class="rounded border border-slate-600 px-3 py-1.5 text-xs text-slate-200 hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-40"
+              :disabled="!canQueueBack"
+              @click="queueBack()"
+            >
+              ← Back
+            </button>
+            <button
+              type="button"
+              class="rounded border border-slate-600 px-3 py-1.5 text-xs text-slate-200 hover:border-slate-400"
+              @click="queueSkip()"
+            >
+              Skip →
+            </button>
+            <button
+              type="button"
+              class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-400 hover:border-rose-700 hover:text-rose-300"
+              @click="queueAbandon()"
+            >
+              Leave queue
+            </button>
+          </div>
+        </div>
+
         <div>
-          <a href="/match" class="text-sm text-slate-400 hover:text-slate-200">← Back</a>
+          <a href="/match" class="text-sm text-slate-400 hover:text-slate-200" @click="if (inQueue) { clearQueueStorage(); }">← Back</a>
           <h1 class="mt-2 text-2xl font-semibold">{{.Name}}</h1>
           <p class="mt-1.5 font-mono text-xs text-slate-500">{{.Hash}}</p>
-          <p class="mt-1 text-sm text-slate-400">Status: {{.Status}}{{if .Tags}} · Tags: {{join .Tags ", "}}{{end}}</p>
+          <p class="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+            <span
+              class="inline-flex items-center gap-2"
+              :title="locationTitle(location)"
+              :aria-label="locationTitle(location)"
+            >
+              <span>Match Status:</span>
+              <span
+                class="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                :class="locationClass(location)"
+                aria-hidden="true"
+              ></span>
+              <span x-text="locationLabel(location)"></span>
+            </span>
+            {{if .Tags}}<span>· Tags: {{join .Tags ", "}}</span>{{end}}
+          </p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
@@ -106,7 +301,9 @@
             class="rounded-lg transition-colors"
             :class="conflicts[{{.Index}}]
               ? 'bg-rose-950/50 ring-1 ring-rose-500/40'
-              : ({{len .Candidates}} === 1 ? 'bg-emerald-900/40' : '')"
+              : ({{len .Candidates}} === 1
+                ? 'bg-emerald-900/40'
+                : ({{len .Candidates}} > 1 ? 'bg-amber-900/40' : ''))"
             x-show="show($el)"
           >
             {{template "match_file_card" (dict "Hash" $.Torrent.Hash "File" .)}}
@@ -121,27 +318,6 @@
           method="post"
           action="/match/{{.Hash}}/save"
           class="flex flex-wrap items-center gap-3"
-          x-data="{
-            canSave: {{json .CanSave}},
-            requiresIncomplete: {{json (eq .Status "partial_match")}},
-            allMatchedSingle: {{json (and (eq .Status "all_matches") .AllSingleMatch)}},
-            allowIncomplete: false,
-            get incompleteEnabled() {
-              return this.requiresIncomplete;
-            },
-            get saveEnabled() {
-              return this.canSave && (!this.requiresIncomplete || this.allowIncomplete);
-            },
-            get saveButtonClass() {
-              if (!this.saveEnabled) {
-                return 'cursor-not-allowed bg-slate-800 text-slate-500';
-              }
-              if (this.allMatchedSingle) {
-                return 'bg-emerald-500 text-slate-950 hover:bg-emerald-400';
-              }
-              return 'bg-cyan-500 text-slate-950 hover:bg-cyan-400';
-            }
-          }"
         >
           <label class="flex items-center gap-2 text-sm" :class="incompleteEnabled ? 'text-slate-300' : 'text-slate-600'">
             <input
@@ -165,12 +341,13 @@
             class="rounded px-4 py-2 text-sm font-medium"
             :class="saveButtonClass"
             :disabled="!saveEnabled"
-            :title="!canSave ? 'No matches to save' : (requiresIncomplete && !allowIncomplete ? 'Enable Allow incomplete to save a partial match' : '')"
+            :title="saveTitle"
           >
             Save fastresume
           </button>
           <span x-show="!canSave" x-cloak class="text-sm text-slate-500">Unavailable while status is no_matches.</span>
-          <span x-show="canSave && requiresIncomplete && !allowIncomplete" x-cloak class="text-sm text-slate-500">Check Allow incomplete to save a partial match.</span>
+          <span x-show="canSave && alreadyCurrent" x-cloak class="text-sm text-slate-500">Already current — nothing to save.</span>
+          <span x-show="canSave && !alreadyCurrent && requiresIncomplete && !allowIncomplete" x-cloak class="text-sm text-slate-500">Check Allow incomplete to save a partial match.</span>
         </form>
       </section>
 
