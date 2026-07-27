@@ -47,6 +47,8 @@ Persisted keys:
 - `search_paths`
 - `exclude_dirs`
 - `host` / `port` (WEB)
+- `log_format` (`text` or `json`; default `text`)
+- `log_level` (`debug`, `info`, `warn`, or `error`; default `info`)
 
 ## CLI
 
@@ -67,12 +69,12 @@ Examples:
   qbit-filematcher web --host localhost --port 8080
 
 Available Commands:
-  completion  Generate the autocompletion script for the specified shell
-  config      View, edit, or remove persisted settings
-  help        Help about any command
   match       Scan disk and update fastresume files
-  version     Print version
+  config      View, edit, or remove persisted settings
   web         Start the web UI server
+  version     Print version
+  help        Help about any command
+  completion  Generate the autocompletion script for the specified shell
 
 Flags:
       --config string   path to qbit-filematcher.yaml (default: next to binary, then user config dir)
@@ -88,8 +90,8 @@ Use "qbit-filematcher [command] --help" for more information about a command.
 | `config` | View, interactively edit, or delete persisted settings. |
 | `web` | Start the embedded WEB UI (`serve` is an alias). |
 | `version` | Print the binary version. |
-| `completion` | Generate shell completion scripts (bash / zsh / fish / powershell). |
 | `help` | Show help for any command. |
+| `completion` | Generate shell completion scripts (bash / zsh / fish / powershell). |
 | `--config` | Explicit path to `qbit-filematcher.yaml` (otherwise binary-dir, then user config dir). |
 | `-h` / `--help` | Show help. |
 | `-v` / `--version` | Same as `version`. |
@@ -153,9 +155,9 @@ Usage:
   qbit-filematcher config [command]
 
 Available Commands:
+  view        Print current settings
   edit        Interactively edit settings
   remove      Delete the config file
-  view        Print current settings
 
 Flags:
   -h, --help   help for config
@@ -168,7 +170,7 @@ Use "qbit-filematcher config [command] --help" for more information about a comm
 
 | Subcommand | Meaning |
 |------------|---------|
-| `view` | Print the resolved config path and current settings (`bt_backup_location`, `search_paths`, `exclude_dirs`, `host`, `port`). |
+| `view` | Print the resolved config path and current settings (`bt_backup_location`, `search_paths`, `exclude_dirs`, `host`, `port`, `log_format`, `log_level`). |
 | `edit` | Prompt for each setting, then confirm before writing the YAML file. |
 | `remove` | Ask for confirmation (`yes`), then delete the config file. |
 
@@ -184,9 +186,11 @@ Aliases:
   web, serve
 
 Flags:
-  -h, --help          help for web
-  -o, --host string   listen host (default: from config or localhost)
-  -p, --port int      listen port (default: from config or 8080)
+  -o, --host string         listen host (default: from config or localhost)
+  -p, --port int            listen port (default: from config or 8080)
+      --log-format string   log format: text or json (default: from config or text)
+      --log-level string    log level: debug, info, warn, or error (default: from config or info)
+  -h, --help                help for web
 
 Global Flags:
       --config string   path to qbit-filematcher.yaml (default: next to binary, then user config dir)
@@ -196,6 +200,8 @@ Global Flags:
 |------|---------|
 | `-o` / `--host` | Listen address. Defaults to config `host`, else `localhost`. |
 | `-p` / `--port` | Listen port. Defaults to config `port`, else `8080`. |
+| `--log-format` | Log output format: `text` or `json`. Defaults to config `log_format`, else `text`. |
+| `--log-level` | Minimum log level: `debug`, `info`, `warn`, or `error`. Defaults to config `log_level`, else `info`. |
 
 ## WEB
 

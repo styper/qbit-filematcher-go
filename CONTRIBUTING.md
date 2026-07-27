@@ -21,7 +21,7 @@ go install github.com/google/go-licenses@latest
 - [golangci-lint](https://golangci-lint.run/) v2 (for `make lint` / `make check`):
 
 ```bash
-go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.5.0
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 ```
 
 `make` is optional — it wraps the same `go run` / `go generate` steps.

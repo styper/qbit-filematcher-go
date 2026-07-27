@@ -46,6 +46,26 @@
               <span class="text-xs text-slate-500">1024–65535 (non-root).</span>
             </label>
           </div>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="block space-y-1 text-sm">
+              <span class="text-slate-300">Log format</span>
+              <select name="log_format" class="w-full rounded border border-slate-700 bg-slate-900 px-3 py-2">
+                <option value="text" {{if eq .Settings.EffectiveLogFormat "text"}}selected{{end}}>TEXT</option>
+                <option value="json" {{if eq .Settings.EffectiveLogFormat "json"}}selected{{end}}>JSON</option>
+              </select>
+              <span class="text-xs text-slate-500">Applies immediately on save. Restart not required.</span>
+            </label>
+            <label class="block space-y-1 text-sm">
+              <span class="text-slate-300">Log level</span>
+              <select name="log_level" class="w-full rounded border border-slate-700 bg-slate-900 px-3 py-2">
+                <option value="debug" {{if eq .Settings.EffectiveLogLevel "debug"}}selected{{end}}>DEBUG</option>
+                <option value="info" {{if eq .Settings.EffectiveLogLevel "info"}}selected{{end}}>INFO</option>
+                <option value="warn" {{if eq .Settings.EffectiveLogLevel "warn"}}selected{{end}}>WARN</option>
+                <option value="error" {{if eq .Settings.EffectiveLogLevel "error"}}selected{{end}}>ERROR</option>
+              </select>
+              <span class="text-xs text-slate-500">Minimum severity written to the log.</span>
+            </label>
+          </div>
           <button type="submit" class="rounded bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-cyan-400">Save</button>
         </form>
       </section>

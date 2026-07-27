@@ -66,6 +66,40 @@ func TestValidateListen(t *testing.T) {
 	}
 }
 
+func TestValidateLogging(t *testing.T) {
+	ok := []Settings{
+		{},
+		{LogFormat: "text", LogLevel: "info"},
+		{LogFormat: "JSON", LogLevel: "WARN"},
+		{LogFormat: "json", LogLevel: "warning"},
+		{LogFormat: "line", LogLevel: "debug"}, // alias for text
+		{LogFormat: "json", LogLevel: "error"},
+	}
+	for _, s := range ok {
+		if err := s.ValidateLogging(); err != nil {
+			t.Errorf("%+v: unexpected error %v", s, err)
+		}
+	}
+	bad := []Settings{
+		{LogFormat: "xml"},
+		{LogLevel: "trace"},
+	}
+	for _, s := range bad {
+		if err := s.ValidateLogging(); err == nil {
+			t.Errorf("%+v: expected error", s)
+		}
+	}
+	if got := (Settings{}).EffectiveLogFormat(); got != LogFormatText {
+		t.Fatalf("EffectiveLogFormat=%q", got)
+	}
+	if got := (Settings{LogFormat: "line"}).EffectiveLogFormat(); got != LogFormatText {
+		t.Fatalf("line alias EffectiveLogFormat=%q", got)
+	}
+	if got := (Settings{}).EffectiveLogLevel(); got != LogLevelInfo {
+		t.Fatalf("EffectiveLogLevel=%q", got)
+	}
+}
+
 func TestUserPath(t *testing.T) {
 	p, err := UserPath()
 	if err != nil {

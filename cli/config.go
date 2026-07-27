@@ -38,6 +38,8 @@ func (a *App) configViewCmd() *cobra.Command {
 			fmt.Fprintf(a.Stdout, "  exclude_dirs:       %s\n", strings.Join(s.ExcludeDirs, ", "))
 			fmt.Fprintf(a.Stdout, "  host:               %s\n", s.Host)
 			fmt.Fprintf(a.Stdout, "  port:               %d\n", s.Port)
+			fmt.Fprintf(a.Stdout, "  log_format:         %s\n", s.EffectiveLogFormat())
+			fmt.Fprintf(a.Stdout, "  log_level:          %s\n", s.EffectiveLogLevel())
 			return nil
 		},
 	}
@@ -96,6 +98,8 @@ func (a *App) editConfig(cfgPath string) error {
 	if p, err := strconv.Atoi(portStr); err == nil {
 		s.Port = p
 	}
+	s.LogFormat = a.promptString(reader, "log_format (text|json)", s.EffectiveLogFormat())
+	s.LogLevel = a.promptString(reader, "log_level (debug|info|warn|error)", s.EffectiveLogLevel())
 
 	fmt.Fprintf(a.Stdout, "Save to %s? [yes/no] (no): ", config.Path(cfgPath))
 	line, _ := reader.ReadString('\n')

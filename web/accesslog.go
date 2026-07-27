@@ -2,9 +2,8 @@ package web
 
 import (
 	"fmt"
-	"io"
+	"log/slog"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -33,12 +32,13 @@ func (r *statusRecorder) Unwrap() http.ResponseWriter {
 	return r.ResponseWriter
 }
 
-// accessLog wraps next and writes one Common-Log-inspired line per request to out.
-// Format: time remote method path status bytes duration
-func accessLog(next http.Handler, out io.Writer) http.Handler {
-	if out == nil {
-		out = os.Stdout
-	}
+// accessLog wraps next and writes one line per request via the package logger.
+// Format: time [INFO ] access: remote method path status bytes duration
+//
+// The logger is resolved per request so SetupWith (e.g. config save) takes
+// effect without restarting the server. JSON attrs use duration_ms (integer
+// milliseconds) for log pipelines such as Grafana/Loki.
+func accessLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
@@ -47,14 +47,16 @@ func accessLog(next http.Handler, out io.Writer) http.Handler {
 		if path == "" {
 			path = "/"
 		}
-		fmt.Fprintf(out, "%s %s %s %s %d %d %s\n",
-			start.UTC().Format(time.RFC3339),
-			r.RemoteAddr,
-			r.Method,
-			path,
-			rec.status,
-			rec.bytes,
-			time.Since(start).Round(time.Millisecond),
+		ms := time.Since(start).Round(time.Millisecond).Milliseconds()
+		msg := fmt.Sprintf("%s %s %s %d %d %dms",
+			r.RemoteAddr, r.Method, path, rec.status, rec.bytes, ms)
+		logAt(GetLogger("access"), slog.LevelInfo, start, msg,
+			"remote", r.RemoteAddr,
+			"method", r.Method,
+			"path", path,
+			"status", rec.status,
+			"bytes", rec.bytes,
+			"duration_ms", ms,
 		)
 	})
 }

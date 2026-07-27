@@ -8,10 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
+	"log/slog"
 	"net"
 	"net/http"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -39,6 +40,12 @@ type Config struct {
 	Host       string
 	Port       int
 	ConfigPath string
+	// Log is the writer for access and business logs. Nil means os.Stdout.
+	Log io.Writer
+	// LogLevel is the minimum log level (slog.Level). Zero means INFO.
+	LogLevel slog.Level
+	// LogFormat is "text" (default) or "json".
+	LogFormat string
 }
 
 // DefaultConfig returns localhost:8080.
@@ -75,6 +82,7 @@ func New(cfg Config) (*App, error) {
 		cfg.Port = 8080
 	}
 	cfg.ConfigPath = config.Path(cfg.ConfigPath)
+	SetupWith(cfg.Log, cfg.LogLevel, cfg.LogFormat)
 
 	hashes, err := loadAssetHashes(staticFS)
 	if err != nil {
@@ -235,9 +243,14 @@ func (a *App) takeError() string {
 }
 
 func (a *App) setError(msg string) {
+	a.setErrFlash(msg)
+	GetLogger("app").Error(msg)
+}
+
+func (a *App) setErrFlash(msg string) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	a.errFlash = msg
+	a.mu.Unlock()
 }
 
 func (a *App) handleIcon(w http.ResponseWriter, _ *http.Request) {
@@ -314,15 +327,28 @@ func (a *App) handleConfigPost(w http.ResponseWriter, r *http.Request) {
 		ExcludeDirs:      splitLines(r.FormValue("exclude_dirs")),
 		Host:             strings.TrimSpace(r.FormValue("host")),
 		Port:             port,
+		LogFormat:        strings.TrimSpace(r.FormValue("log_format")),
+		LogLevel:         strings.TrimSpace(r.FormValue("log_level")),
 	}
 	if err := s.Validate(); err != nil {
+		GetLogger("config").Error(err.Error())
 		a.render(w, "config.html", pageData{Title: "Config", Settings: s, Error: err.Error()})
 		return
 	}
 	if err := config.Save(a.Config.ConfigPath, s); err != nil {
+		GetLogger("config").Error(err.Error())
 		a.render(w, "config.html", pageData{Title: "Config", Settings: s, Error: err.Error()})
 		return
 	}
+	// Apply logging settings immediately (restart not required).
+	a.Config.LogFormat = s.EffectiveLogFormat()
+	a.Config.LogLevel = ParseLogLevel(s.LogLevel)
+	SetupWith(a.Config.Log, a.Config.LogLevel, a.Config.LogFormat)
+	GetLogger("config").Info(fmt.Sprintf("saved %s", a.Config.ConfigPath),
+		"path", a.Config.ConfigPath,
+		"log_format", a.Config.LogFormat,
+		"log_level", s.EffectiveLogLevel(),
+	)
 	a.setFlash("Configuration saved.")
 	http.Redirect(w, r, "/config", http.StatusSeeOther)
 }
@@ -369,6 +395,7 @@ func (a *App) handleMatchScan(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleMatchScanCancel(w http.ResponseWriter, r *http.Request) {
+	GetLogger("scan").Info("cancel requested")
 	a.cancelScan()
 	http.Redirect(w, r, "/match", http.StatusSeeOther)
 }
@@ -424,12 +451,16 @@ func (a *App) runScan(ctx context.Context, s config.Settings) {
 		a.mu.Unlock()
 	}()
 
+	logMatchScanParams(s)
+
 	lib, err := filematcher.LoadLibrary(s.BTBackupLocation, filematcher.LoadOptions{})
 	if err != nil {
 		a.setError(err.Error())
 		return
 	}
+	logLibraryLoadErrors(lib)
 	if err := ctx.Err(); err != nil {
+		GetLogger("scan").Info("cancelled")
 		a.setFlash("Scan cancelled.")
 		return
 	}
@@ -441,6 +472,7 @@ func (a *App) runScan(ctx context.Context, s config.Settings) {
 	})
 	if err != nil {
 		if ctx.Err() != nil {
+			GetLogger("scan").Info("cancelled")
 			a.setFlash("Scan cancelled.")
 			return
 		}
@@ -453,12 +485,25 @@ func (a *App) runScan(ctx context.Context, s config.Settings) {
 	a.mu.Unlock()
 
 	torrents, files, matches := libraryScanStats(lib)
+	elapsed := formatElapsed(time.Since(start))
+	msg := fmt.Sprintf("done — %s, %s, %s in %s",
+		countNoun(torrents, "torrent", "torrents"),
+		countNoun(files, "file", "files"),
+		countNoun(matches, "match", "matches"),
+		elapsed,
+	)
+	GetLogger("scan").Info(msg,
+		"torrents", torrents,
+		"files", files,
+		"matches", matches,
+		"elapsed", elapsed,
+	)
 	a.setFlash(fmt.Sprintf(
 		"Loaded %s with %s and %s in %s.",
 		countNoun(torrents, "torrent", "torrents"),
 		countNoun(files, "file", "files"),
 		countNoun(matches, "match", "matches"),
-		formatElapsed(time.Since(start)),
+		elapsed,
 	))
 }
 
@@ -605,11 +650,23 @@ func (a *App) handleMatchSave(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, loc, http.StatusSeeOther)
 		return
 	}
+	logMatchSave(tor, plan, allowIncomplete)
 	written, err := tor.Save(plan, filematcher.DefaultSaveOptions())
 	if err != nil {
-		a.setError(err.Error())
+		if errors.Is(err, filematcher.ErrQBitRunning) {
+			GetLogger("save").Warn("refused — qBittorrent is running",
+				"reason", "qbittorrent_running")
+		} else {
+			GetLogger("save").Error(err.Error())
+		}
+		a.setErrFlash(err.Error())
 		http.Redirect(w, r, loc, http.StatusSeeOther)
 		return
+	}
+	if written {
+		GetLogger("save").Info("fastresume updated", "written", true)
+	} else {
+		GetLogger("save").Info("already up to date", "written", false)
 	}
 	msg := "Already up to date."
 	if written {
@@ -702,6 +759,84 @@ func formatElapsed(d time.Duration) string {
 	return d.String()
 }
 
+// logMatchScanParams writes the scan search parameters as one atomic log block.
+func logMatchScanParams(s config.Settings) {
+	var b strings.Builder
+	b.WriteString("starting\n")
+	fmt.Fprintf(&b, "  bt_backup: %s\n", s.BTBackupLocation)
+	fmt.Fprintf(&b, "  search_paths: %s\n", strings.Join(s.SearchPaths, ", "))
+	fmt.Fprintf(&b, "  exclude_dirs: %s\n", strings.Join(s.ExcludeDirs, ", "))
+	b.WriteString("  select_best: true")
+	GetLogger("scan").Info(b.String(),
+		"bt_backup", s.BTBackupLocation,
+		"search_paths", s.SearchPaths,
+		"exclude_dirs", s.ExcludeDirs,
+		"select_best", true,
+	)
+}
+
+// logLibraryLoadErrors writes one line per torrent that failed to load.
+func logLibraryLoadErrors(lib *filematcher.Library) {
+	if lib == nil || len(lib.LoadErrors) == 0 {
+		return
+	}
+	hashes := make([]string, 0, len(lib.LoadErrors))
+	for hash := range lib.LoadErrors {
+		hashes = append(hashes, hash)
+	}
+	sort.Strings(hashes)
+	log := GetLogger("scan")
+	for _, hash := range hashes {
+		err := lib.LoadErrors[hash]
+		log.Warn(fmt.Sprintf("skipped %s: %v", hash, err),
+			"hash", hash,
+			"err", err.Error(),
+		)
+	}
+}
+
+// logMatchSave writes the torrent's current match state and save plan as one atomic block.
+func logMatchSave(tor *filematcher.Torrent, plan *filematcher.SavePlan, allowIncomplete bool) {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s (%s)\n", tor.Info.Name, tor.Info.HashV1)
+	fmt.Fprintf(&b, "  status: %s\n", tor.Status())
+	fmt.Fprintf(&b, "  location: %s\n", tor.LocationStatus())
+	fmt.Fprintf(&b, "  allow_incomplete: %v\n", allowIncomplete)
+	fmt.Fprintf(&b, "  current_save_path: %s\n", tor.Info.SavePath)
+	selectedPaths := make([]string, 0, len(tor.Info.RealFiles()))
+	for _, f := range tor.Info.RealFiles() {
+		m := tor.Matches[f.Index]
+		selected := "(no match)"
+		if m != nil && m.HasMatch() {
+			selected = m.Selected()
+		}
+		selectedPaths = append(selectedPaths, selected)
+		fmt.Fprintf(&b, "  current[%d]: %s -> %s\n", f.Index, f.Path, selected)
+	}
+	fmt.Fprintf(&b, "  plan_save_path: %s\n", plan.SavePath)
+	fmt.Fprintf(&b, "  plan_incomplete: %v\n", plan.IsIncomplete)
+	mapped := make([]string, 0, len(plan.MappedFiles))
+	for i, m := range plan.MappedFiles {
+		if m == "" {
+			continue
+		}
+		mapped = append(mapped, m)
+		fmt.Fprintf(&b, "  plan[%d]: %s\n", i, m)
+	}
+	GetLogger("save").Info(strings.TrimSuffix(b.String(), "\n"),
+		"name", tor.Info.Name,
+		"hash", tor.Info.HashV1,
+		"status", tor.Status().String(),
+		"location", tor.LocationStatus().String(),
+		"allow_incomplete", allowIncomplete,
+		"current_save_path", tor.Info.SavePath,
+		"selected", selectedPaths,
+		"plan_save_path", plan.SavePath,
+		"plan_incomplete", plan.IsIncomplete,
+		"mapped_files", mapped,
+	)
+}
+
 // countNoun formats n with singular or plural noun (0 and n≠1 use plural).
 func countNoun(n int, singular, pluralForm string) string {
 	if n == 1 {
@@ -750,9 +885,9 @@ func splitLines(s string) []string {
 	return out
 }
 
-// Handler returns the root HTTP handler (with access logging to stdout).
+// Handler returns the root HTTP handler (with access logging).
 func (a *App) Handler() http.Handler {
-	return accessLog(a.mux, os.Stdout)
+	return accessLog(a.mux)
 }
 
 // ListenAndServe starts the HTTP server and blocks until ctx is cancelled.

@@ -34,7 +34,22 @@ type Settings struct {
 	ExcludeDirs      []string `yaml:"exclude_dirs,omitempty" json:"exclude_dirs"`
 	Host             string   `yaml:"host,omitempty" json:"host"`
 	Port             int      `yaml:"port,omitempty" json:"port"`
+	// LogFormat is "text" (default) or "json" for structured/Grafana-friendly output.
+	LogFormat string `yaml:"log_format,omitempty" json:"log_format"`
+	// LogLevel is debug, info (default), warn, or error.
+	LogLevel string `yaml:"log_level,omitempty" json:"log_level"`
 }
+
+// Log format and level names.
+const (
+	LogFormatText = "text"
+	LogFormatJSON = "json"
+
+	LogLevelDebug = "debug"
+	LogLevelInfo  = "info"
+	LogLevelWarn  = "warn"
+	LogLevelError = "error"
+)
 
 // testExeDir overrides ExecutableDir when non-empty (tests only).
 var testExeDir string
@@ -160,6 +175,12 @@ func merge(base, over Settings) Settings {
 	if over.Port != 0 {
 		base.Port = over.Port
 	}
+	if over.LogFormat != "" {
+		base.LogFormat = over.LogFormat
+	}
+	if over.LogLevel != "" {
+		base.LogLevel = over.LogLevel
+	}
 	return base
 }
 
@@ -196,11 +217,12 @@ func Remove(path string) error {
 	return err
 }
 
-// Validate checks all persisted settings (paths + web listen address).
+// Validate checks all persisted settings (paths + web listen address + logging).
 func (s Settings) Validate() error {
 	var errs []string
 	errs = append(errs, collectErrors(s.ValidatePaths())...)
 	errs = append(errs, collectErrors(s.ValidateListen())...)
+	errs = append(errs, collectErrors(s.ValidateLogging())...)
 	if len(errs) == 0 {
 		return nil
 	}
@@ -254,6 +276,64 @@ func (s Settings) ValidateListen() error {
 		return nil
 	}
 	return errors.New(strings.Join(errs, "\n"))
+}
+
+// ValidateLogging checks log_format and log_level when set.
+func (s Settings) ValidateLogging() error {
+	var errs []string
+	if _, err := NormalizeLogFormat(s.LogFormat); err != nil {
+		errs = append(errs, err.Error())
+	}
+	if _, err := NormalizeLogLevel(s.LogLevel); err != nil {
+		errs = append(errs, err.Error())
+	}
+	if len(errs) == 0 {
+		return nil
+	}
+	return errors.New(strings.Join(errs, "\n"))
+}
+
+// NormalizeLogFormat returns LogFormatText or LogFormatJSON.
+// Empty input defaults to LogFormatText. "line" is accepted as an alias for text.
+func NormalizeLogFormat(format string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "", LogFormatText, "line":
+		return LogFormatText, nil
+	case LogFormatJSON:
+		return LogFormatJSON, nil
+	default:
+		return "", fmt.Errorf("log_format must be %q or %q", LogFormatText, LogFormatJSON)
+	}
+}
+
+// NormalizeLogLevel returns a canonical level name (debug/info/warn/error).
+// Empty input defaults to LogLevelInfo. "warning" is accepted as warn.
+func NormalizeLogLevel(level string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(level)) {
+	case "", LogLevelInfo:
+		return LogLevelInfo, nil
+	case LogLevelDebug:
+		return LogLevelDebug, nil
+	case LogLevelWarn, "warning":
+		return LogLevelWarn, nil
+	case LogLevelError:
+		return LogLevelError, nil
+	default:
+		return "", fmt.Errorf("log_level must be one of %q, %q, %q, %q",
+			LogLevelDebug, LogLevelInfo, LogLevelWarn, LogLevelError)
+	}
+}
+
+// EffectiveLogFormat returns the normalized log format (never empty).
+func (s Settings) EffectiveLogFormat() string {
+	f, _ := NormalizeLogFormat(s.LogFormat)
+	return f
+}
+
+// EffectiveLogLevel returns the normalized log level name (never empty).
+func (s Settings) EffectiveLogLevel() string {
+	l, _ := NormalizeLogLevel(s.LogLevel)
+	return l
 }
 
 func checkReadableDir(path, label string) error {

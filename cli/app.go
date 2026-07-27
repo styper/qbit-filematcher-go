@@ -62,6 +62,7 @@ func (a *App) rootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	cobra.EnableCommandSorting = false
 	cmd.SetVersionTemplate("qbit-filematcher {{.Version}}\n")
 	cmd.PersistentFlags().StringVar(&a.configPath, "config", "", "path to qbit-filematcher.yaml (default: next to binary, then user config dir)")
 
