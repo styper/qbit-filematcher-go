@@ -36,7 +36,7 @@ func (a *App) matchCmd() *cobra.Command {
 
 Path settings come from the config file; flags below override when set.
 After merge, --bt-backup and at least one --search path are required.`,
-		Example: `  qbit-filematcher match -b ~/.local/share/data/qBittorrent/BT_backup -s /data/media --auto
+		Example: `  qbit-filematcher match -b ~/.local/share/qBittorrent/BT_backup -s /data/media --auto
   qbit-filematcher match --dry-run -s /data/media
   qbit-filematcher match -s /data/media -s /mnt/nas/media
   qbit-filematcher match -s "/data/My Media" -s /mnt/nas/media`,

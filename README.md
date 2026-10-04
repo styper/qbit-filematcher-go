@@ -28,6 +28,40 @@ Put the binary on your `PATH`, or run it from the extracted directory.
 5. Compute a NoSubfolder-style `save_path` + `mapped_files`
 6. Rewrite `.fastresume` (with timestamped backup), preferably while qBittorrent is closed
 
+## Example
+
+Start with a `Cool ISOs` torrent. Its files live under a `Cool ISOs` folder, each ISO in its own subfolder:
+
+![qBittorrent before rematch](assets/screenshots/qbittorrent-before.png)
+
+Quit qBittorrent, then rename and move the files on disk:
+
+![Moved and renamed files under /data](assets/screenshots/moved-and-renamed-files.png)
+
+Open the WEB UI. On the first run, set the `BT_backup` directory and the search paths on the Config page:
+
+![WEB configuration page](assets/screenshots/web-config.png)
+
+Save, open Match, and run a scan. The torrent list appears when the scan finishes:
+
+![Match list after a scan](assets/screenshots/web-match.png)
+
+Open the torrent to review each file, the proposed tree, and any errors. A file with several candidates is tinted amber; keep the pre-selected path or pick another:
+
+![Torrent detail — four single matches and one file with two candidates](assets/screenshots/web-match-hash.png)
+
+Saving updates the `.fastresume` and writes a timestamped `.bak` beside it:
+
+![BT_backup after rematch, with a timestamped .bak](assets/screenshots/BT_backup-after.png)
+
+Restart qBittorrent. The content tab shows the new paths:
+
+![qBittorrent after rematch](assets/screenshots/qbittorrent-after.png)
+
+The same result can be achieved by using the CLI:
+
+![CLI match](assets/screenshots/cli-match.png)
+
 ## Configuration
 
 Config file: `qbit-filematcher.yaml`. Lookup order:
@@ -63,7 +97,7 @@ Usage:
   qbit-filematcher [command]
 
 Examples:
-  qbit-filematcher match -b ~/.local/share/data/qBittorrent/BT_backup -s /data/media --auto
+  qbit-filematcher match -b ~/.local/share/qBittorrent/BT_backup -s /data/media --auto
   qbit-filematcher match --dry-run -s /data/media
   qbit-filematcher config view
   qbit-filematcher web --host localhost --port 8080
@@ -108,7 +142,7 @@ Usage:
   qbit-filematcher match [flags]
 
 Examples:
-  qbit-filematcher match -b ~/.local/share/data/qBittorrent/BT_backup -s /data/media --auto
+  qbit-filematcher match -b ~/.local/share/qBittorrent/BT_backup -s /data/media --auto
   qbit-filematcher match --dry-run -s /data/media
   qbit-filematcher match -s /data/media -s /mnt/nas/media
   qbit-filematcher match -s "/data/My Media" -s /mnt/nas/media

@@ -72,7 +72,7 @@ func (a *App) rootCmd() *cobra.Command {
 		a.webCmd(),
 		a.versionCmd(),
 	)
-	cmd.Example = `  qbit-filematcher match -b ~/.local/share/data/qBittorrent/BT_backup -s /data/media --auto
+	cmd.Example = `  qbit-filematcher match -b ~/.local/share/qBittorrent/BT_backup -s /data/media --auto
   qbit-filematcher match --dry-run -s /data/media
   qbit-filematcher config view
   qbit-filematcher web --host localhost --port 8080`

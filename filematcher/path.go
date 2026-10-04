@@ -29,7 +29,9 @@ func DefaultBTBackup() string {
 	switch runtime.GOOS {
 	case "windows":
 		return filepath.Join(home, "AppData", "Local", "qBittorrent", "BT_backup")
-	case "linux", "darwin":
+	case "linux":
+		return filepath.Join(home, ".local", "share", "qBittorrent", "BT_backup")
+	case "darwin":
 		return filepath.Join(home, ".local", "share", "data", "qBittorrent", "BT_backup")
 	default:
 		return ""
